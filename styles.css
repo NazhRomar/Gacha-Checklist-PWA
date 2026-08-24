@@ -42,6 +42,50 @@ body {
     background: rgba(255, 255, 255, 0.08);
 }
 
+/* --- Hamburger / Visibility Menu --- */
+.dropdown-menu {
+    background: rgba(17, 19, 21, 0.97) !important;
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border-color) !important;
+    border-radius: 16px !important;
+    padding: 10px !important;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+    min-width: 260px;
+}
+
+.dropdown-header {
+    color: #71717a !important;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 8px 10px 4px !important;
+}
+
+.dropdown-divider {
+    border-color: var(--border-color) !important;
+    margin: 8px 4px !important;
+}
+
+.dropdown-item {
+    border-radius: 10px !important;
+    padding: 9px 10px !important;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #e4e4e7 !important;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background: rgba(255, 255, 255, 0.07) !important;
+    color: #fff !important;
+}
+
+.dropdown-item .form-check-input {
+    margin-right: 10px;
+}
+
 .navbar .h5 {
     letter-spacing: 2px;
     background: linear-gradient(90deg, #fff, #a1a1aa);
@@ -209,26 +253,34 @@ body {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 7px 14px;
+    gap: 8px;
+    padding: 6px 14px 6px 6px;
     border-radius: 999px;
     border: 1px solid var(--border-color);
     background: rgba(255, 255, 255, 0.03);
     color: #efefef;
-    font-size: 0.8rem;
+    font-size: 0.78rem;
     font-weight: 700;
     text-decoration: none;
     white-space: nowrap;
     transition: all 0.2s ease;
+    cursor: pointer;
 }
 
-.quick-pill-dot {
-    width: 8px;
-    height: 8px;
+.quick-pill-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    background: var(--game-accent);
-    box-shadow: 0 0 6px var(--game-accent);
+    background: color-mix(in srgb, var(--game-accent) 22%, transparent);
+    color: var(--game-accent);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.6rem;
+    font-weight: 800;
     flex-shrink: 0;
+    transition: box-shadow 0.2s ease;
 }
 
 .quick-pill:active,
@@ -238,18 +290,57 @@ body {
     background: color-mix(in srgb, var(--game-accent) 12%, rgba(255, 255, 255, 0.03));
 }
 
+.quick-pill.active {
+    color: #fff;
+    border-color: var(--game-accent);
+    background: color-mix(in srgb, var(--game-accent) 16%, rgba(255, 255, 255, 0.04));
+}
+
+.quick-pill.active .quick-pill-badge {
+    box-shadow: 0 0 10px color-mix(in srgb, var(--game-accent) 70%, transparent);
+}
+
 .quick-pill-count {
     font-family: "JetBrains Mono", monospace;
     color: var(--game-accent);
-    font-size: 0.75rem;
+    font-size: 0.72rem;
 }
 
 .quick-pill.done {
     opacity: 0.45;
 }
 
-.quick-pill.done .quick-pill-dot {
+.quick-pill.done .quick-pill-badge {
     box-shadow: none;
+}
+
+/* --- Daily/Weekly/Monthly segmented tabs (mobile) --- */
+.type-tabs {
+    display: none;
+    gap: 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.type-tab {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.02);
+    color: #a1a1aa;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.type-tab.active {
+    color: #000;
+    background: var(--game-accent);
+    border-color: var(--game-accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--game-accent) 50%, transparent);
 }
 
 .task-grid {
@@ -413,7 +504,7 @@ footer {
 }
 
 /* --- Responsive Layout --- */
-@media (min-width: 577px) {
+@media (min-width: 768px) {
     .progress-track {
         display: block;
     }
@@ -430,62 +521,135 @@ footer {
     }
 }
 
-@media (max-width: 576px) {
-    .navbar {
-        padding: 0.5rem 0;
+/* Below md: one game + one task-type visible at a time, driven by tabs */
+@media (max-width: 767.98px) {
+    .game-section.visible {
+        display: none;
     }
 
-    .quick-nav {
-        padding: 8px 12px;
-    }
-
-    .quick-pill {
-        padding: 8px 14px;
-        font-size: 0.78rem;
+    .game-section.visible.mobile-active {
+        display: block;
     }
 
     .game-header {
-        padding: 14px 18px;
+        cursor: default;
     }
 
-    .game-title {
-        font-size: 1.05rem;
+    .collapse-arrow {
+        display: none;
+    }
+
+    .type-tabs {
+        display: flex;
+    }
+
+    .task-grid {
+        flex-direction: row;
     }
 
     .task-column {
-        padding: 18px 16px;
+        display: none;
+        border-bottom: none;
+    }
+
+    .task-column.type-active {
+        display: block;
+    }
+}
+
+@media (max-width: 576px) {
+    .navbar {
+        padding: 0.45rem 0;
+    }
+
+    .navbar .h5 {
+        font-size: 1rem;
+        letter-spacing: 1px;
+    }
+
+    .quick-nav {
+        padding: 8px 10px;
+    }
+
+    .quick-pill {
+        padding: 5px 12px 5px 5px;
+        font-size: 0.7rem;
+        gap: 6px;
+    }
+
+    .quick-pill-badge {
+        width: 22px;
+        height: 22px;
+        font-size: 0.52rem;
+    }
+
+    .quick-pill-count {
+        font-size: 0.66rem;
+    }
+
+    .game-header {
+        padding: 12px 16px;
+    }
+
+    .game-title {
+        font-size: 0.95rem;
+    }
+
+    .game-progress {
+        font-size: 0.72rem;
+    }
+
+    .type-tabs {
+        padding: 8px 12px;
+    }
+
+    .type-tab {
+        font-size: 0.64rem;
+        padding: 7px 8px;
+    }
+
+    .task-column {
+        padding: 14px 14px;
         min-width: 0;
     }
 
+    .column-title {
+        font-size: 0.62rem;
+        margin-bottom: 10px;
+    }
+
     .checklist-main {
-        padding: 12px 14px;
-        min-height: 44px;
+        padding: 10px 12px;
+        min-height: 40px;
     }
 
     .checklist-toggle-box {
-        width: 50px;
+        width: 42px;
     }
 
     .task-label {
-        font-size: 1rem;
+        font-size: 0.85rem;
     }
 
     .form-check-input {
-        width: 20px;
-        height: 20px;
-        margin-right: 14px;
+        width: 18px;
+        height: 18px;
+        margin-right: 12px;
+    }
+
+    .sub-nav {
+        font-size: 0.66rem;
     }
 
     .sub-nav .container {
-        gap: 1rem !important;
+        gap: 0.75rem !important;
         flex-wrap: wrap;
         justify-content: center !important;
-        font-size: 0.7rem;
     }
 
     footer .container {
         flex-direction: column;
         gap: 4px;
-        font-size: 0.65rem;
+        font-size: 0.62rem;
     }
 }

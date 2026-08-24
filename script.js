@@ -12,6 +12,8 @@ let state = JSON.parse(localStorage.getItem("gacha_pwa_v1")) || {
     menus: [],
     collapsed: [],
     hideMonthly: false,
+    activeGame: null,
+    activeType: "d",
     lastD: 0,
     lastW: 0,
     lastM: 0,
@@ -19,6 +21,10 @@ let state = JSON.parse(localStorage.getItem("gacha_pwa_v1")) || {
     rs: null,
 };
 if (!state.collapsed) state.collapsed = [];
+if (!state.activeType) state.activeType = "d";
+
+const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly" };
+const isMobile = () => window.innerWidth < 768;
 
 // --- Save & Global Functions ---
 window.save = (isReset = false) => {
@@ -44,20 +50,43 @@ function taskCounts(g) {
 }
 
 window.toggleCollapse = (gid) => {
+    if (isMobile()) return; // mobile uses tabs instead of collapsing
     state.collapsed = state.collapsed.includes(gid) ? state.collapsed.filter(c => c !== gid) : [...state.collapsed, gid];
+    window.save();
+    buildDashboard();
+};
+
+window.setActiveGame = (gid) => {
+    state.activeGame = gid;
+    window.save();
+    buildDashboard();
+    document.getElementById(`section-${gid}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+window.setActiveType = (type) => {
+    state.activeType = type;
     window.save();
     buildDashboard();
 };
 
 // --- UI Logic ---
 function buildDashboard() {
-    // Quick-jump nav (visible games only)
     const visibleGames = games.filter(g => !state.hidden.includes(g.id));
+    if (!visibleGames.some(g => g.id === state.activeGame)) {
+        state.activeGame = visibleGames[0]?.id || null;
+    }
+
+    // Game tab bar (also used as quick-jump on desktop)
     document.getElementById("quick-nav").innerHTML = visibleGames
         .map(g => {
             const { done, total } = taskCounts(g);
             const doneAll = total > 0 && done === total;
-            return `<a class="quick-pill ${g.style} ${doneAll ? "done" : ""}" href="#section-${g.id}"><span class="quick-pill-dot"></span>${g.name} <span class="quick-pill-count">${done}/${total}</span></a>`;
+            const isActive = g.id === state.activeGame;
+            return `<button type="button" class="quick-pill ${g.style} ${doneAll ? "done" : ""} ${isActive ? "active" : ""}" onclick="setActiveGame('${g.id}')">
+                <span class="quick-pill-badge">${g.badge}</span>
+                <span class="quick-pill-name">${g.name}</span>
+                <span class="quick-pill-count">${done}/${total}</span>
+            </button>`;
         }).join("");
 
     // Game Sections
@@ -65,9 +94,11 @@ function buildDashboard() {
         .map(g => {
             const { done, total } = taskCounts(g);
             const isCollapsed = state.collapsed.includes(g.id);
+            const isMobileActive = g.id === state.activeGame;
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            const types = ["d", "w", ...(state.hideMonthly ? [] : ["m"])];
             return `
-            <div id="section-${g.id}" class="game-section ${g.style} ${!state.hidden.includes(g.id) ? "visible" : ""} ${isCollapsed ? "collapsed" : ""}">
+            <div id="section-${g.id}" class="game-section ${g.style} ${!state.hidden.includes(g.id) ? "visible" : ""} ${isCollapsed ? "collapsed" : ""} ${isMobileActive ? "mobile-active" : ""}">
                 <div class="game-header" onclick="toggleCollapse('${g.id}')">
                     <h2 class="game-title">${g.name}</h2>
                     <div class="game-header-right">
@@ -76,10 +107,13 @@ function buildDashboard() {
                         <span class="collapse-arrow">▼</span>
                     </div>
                 </div>
+                <div class="type-tabs">
+                    ${types.map(type => `<button type="button" class="type-tab ${state.activeType === type ? "active" : ""}" onclick="setActiveType('${type}')">${TYPE_LABELS[type]}</button>`).join("")}
+                </div>
                 <div class="task-grid">
-                    <div class="task-column"><div class="column-title"><span class="column-dot"></span>Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
-                    <div class="task-column"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
-                    ${!state.hideMonthly ? `<div class="task-column"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
+                    <div class="task-column ${state.activeType === "d" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
+                    <div class="task-column ${state.activeType === "w" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
+                    ${!state.hideMonthly ? `<div class="task-column ${state.activeType === "m" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
                 </div>
             </div>`;
         }).join("");
