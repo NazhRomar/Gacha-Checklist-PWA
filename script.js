@@ -57,7 +57,7 @@ function buildDashboard() {
         .map(g => {
             const { done, total } = taskCounts(g);
             const doneAll = total > 0 && done === total;
-            return `<a class="quick-pill ${g.style} ${doneAll ? "done" : ""}" href="#section-${g.id}">${g.name} <span class="quick-pill-count">${done}/${total}</span></a>`;
+            return `<a class="quick-pill ${g.style} ${doneAll ? "done" : ""}" href="#section-${g.id}"><span class="quick-pill-dot"></span>${g.name} <span class="quick-pill-count">${done}/${total}</span></a>`;
         }).join("");
 
     // Game Sections
@@ -65,19 +65,21 @@ function buildDashboard() {
         .map(g => {
             const { done, total } = taskCounts(g);
             const isCollapsed = state.collapsed.includes(g.id);
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
             return `
             <div id="section-${g.id}" class="game-section ${g.style} ${!state.hidden.includes(g.id) ? "visible" : ""} ${isCollapsed ? "collapsed" : ""}">
                 <div class="game-header" onclick="toggleCollapse('${g.id}')">
                     <h2 class="game-title">${g.name}</h2>
                     <div class="game-header-right">
+                        <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
                         <span class="game-progress">${done}/${total}</span>
                         <span class="collapse-arrow">▼</span>
                     </div>
                 </div>
                 <div class="task-grid">
-                    <div class="task-column"><div class="column-title">Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
-                    <div class="task-column"><div class="column-title">Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
-                    ${!state.hideMonthly ? `<div class="task-column"><div class="column-title">Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
+                    <div class="task-column"><div class="column-title"><span class="column-dot"></span>Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
+                    <div class="task-column"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
+                    ${!state.hideMonthly ? `<div class="task-column"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
                 </div>
             </div>`;
         }).join("");

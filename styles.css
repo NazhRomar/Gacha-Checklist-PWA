@@ -1,6 +1,6 @@
 :root {
     --bg-dark: #08090a;
-    --card-bg: #111315;
+    --card-bg: #121417;
     --border-color: rgba(255, 255, 255, 0.08);
     --gi-color: #4ade80;
     --hi3-color: #f472b6;
@@ -8,8 +8,16 @@
     --zzz-color: #facc15;
 }
 
+* {
+    box-sizing: border-box;
+}
+
 body {
-    background-color: var(--bg-dark);
+    background:
+        radial-gradient(circle at 15% 0%, rgba(74, 222, 128, 0.06), transparent 30%),
+        radial-gradient(circle at 85% 15%, rgba(96, 165, 250, 0.06), transparent 30%),
+        var(--bg-dark);
+    background-attachment: fixed;
     color: #efefef;
     font-family: "Plus Jakarta Sans", sans-serif;
     min-height: 100vh;
@@ -19,16 +27,33 @@ body {
 
 /* --- Header & Subheader --- */
 .navbar {
-    background: rgba(8, 9, 10, 0.95);
-    backdrop-filter: blur(15px);
+    background: rgba(8, 9, 10, 0.85);
+    backdrop-filter: blur(18px);
     border-bottom: 1px solid var(--border-color);
-    padding: 0.6rem 0;
+    padding: 0.7rem 0;
+}
+
+.navbar .btn {
+    border-radius: 10px;
+    transition: all 0.2s ease;
+}
+
+.navbar .btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.navbar .h5 {
+    letter-spacing: 2px;
+    background: linear-gradient(90deg, #fff, #a1a1aa);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 .sub-nav {
     background: rgba(255, 255, 255, 0.02);
     border-bottom: 1px solid var(--border-color);
-    padding: 4px 0;
+    padding: 6px 0;
     font-size: 0.75rem;
     font-family: "JetBrains Mono", monospace;
 }
@@ -53,40 +78,63 @@ body {
 /* --- Main Dashboard --- */
 .main-content {
     flex: 1;
-    margin-top: 20px;
+    margin-top: 24px;
 }
 
 .game-section {
+    position: relative;
     background: var(--card-bg);
-    border-radius: 20px;
+    border-radius: 18px;
     border: 1px solid var(--border-color);
-    margin-bottom: 30px;
+    margin-bottom: 24px;
     display: none;
     overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.game-section::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--game-accent), transparent 85%);
 }
 
 .game-section.visible {
     display: block;
 }
 
+.game-section:hover {
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
 .game-header {
-    padding: 12px 30px;
-    background: rgba(255, 255, 255, 0.02);
+    padding: 16px 28px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--game-accent) 6%, transparent), transparent);
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     justify-content: space-between;
     cursor: pointer;
     user-select: none;
+    transition: background 0.2s ease;
+}
+
+.game-header:hover {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--game-accent) 12%, transparent), transparent);
 }
 
 .game-title {
     font-weight: 800;
-    font-size: 1.2rem;
+    font-size: 1.15rem;
     margin: 0;
     text-transform: uppercase;
     color: var(--game-accent);
     letter-spacing: 1px;
+    text-shadow: 0 0 18px color-mix(in srgb, var(--game-accent) 35%, transparent);
 }
 
 .game-header-right {
@@ -95,11 +143,30 @@ body {
     gap: 14px;
 }
 
+.progress-track {
+    width: 90px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    display: none;
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--game-accent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--game-accent) 60%, transparent);
+    transition: width 0.3s ease;
+}
+
 .game-progress {
     font-family: "JetBrains Mono", monospace;
     font-size: 0.8rem;
     font-weight: 700;
     color: var(--game-accent);
+    min-width: 40px;
+    text-align: right;
 }
 
 .collapse-arrow {
@@ -121,8 +188,8 @@ body {
 .quick-nav-wrap {
     top: 0;
     z-index: 1020;
-    background: rgba(8, 9, 10, 0.97);
-    backdrop-filter: blur(15px);
+    background: rgba(8, 9, 10, 0.9);
+    backdrop-filter: blur(18px);
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -142,7 +209,7 @@ body {
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     padding: 7px 14px;
     border-radius: 999px;
     border: 1px solid var(--border-color);
@@ -155,11 +222,20 @@ body {
     transition: all 0.2s ease;
 }
 
+.quick-pill-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--game-accent);
+    box-shadow: 0 0 6px var(--game-accent);
+    flex-shrink: 0;
+}
+
 .quick-pill:active,
 .quick-pill:hover {
     color: #fff;
     border-color: var(--game-accent);
-    background: rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--game-accent) 12%, rgba(255, 255, 255, 0.03));
 }
 
 .quick-pill-count {
@@ -169,7 +245,11 @@ body {
 }
 
 .quick-pill.done {
-    opacity: 0.5;
+    opacity: 0.45;
+}
+
+.quick-pill.done .quick-pill-dot {
+    box-shadow: none;
 }
 
 .task-grid {
@@ -180,7 +260,7 @@ body {
 .task-column {
     flex: 1;
     min-width: 300px;
-    padding: 25px 30px;
+    padding: 22px 28px;
     border-right: 1px solid var(--border-color);
 }
 
@@ -189,27 +269,39 @@ body {
 }
 
 .column-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 0.7rem;
     font-weight: 800;
-    color: #71717a;
+    color: #a1a1aa;
     letter-spacing: 2px;
-    margin-bottom: 15px;
+    margin-bottom: 14px;
     text-transform: uppercase;
+}
+
+.column-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--game-accent);
 }
 
 /* --- Checklist Items --- */
 .checklist-wrapper {
     display: flex;
     align-items: stretch;
-    margin-bottom: 5px;
-    border-radius: 10px;
+    margin-bottom: 6px;
+    border-radius: 12px;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.02);
-    transition: background 0.2s;
+    border: 1px solid transparent;
+    transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 .checklist-wrapper:hover {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(255, 255, 255, 0.045);
+    border-color: color-mix(in srgb, var(--game-accent) 25%, transparent);
 }
 
 .checklist-main {
@@ -230,7 +322,7 @@ body {
     cursor: pointer;
     color: #fff;
     font-size: 0.8rem;
-    transition: background 0.2s;
+    transition: background 0.2s ease;
 }
 
 .checklist-toggle-box:hover {
@@ -255,28 +347,35 @@ body {
 }
 
 .form-check-input {
-    width: 17px;
-    height: 17px;
+    width: 18px;
+    height: 18px;
     margin-right: 12px;
     cursor: pointer;
     background-color: #1a1d21;
-    border-color: #333;
+    border-color: #3a3a3f;
+    transition: all 0.15s ease;
 }
 
 .form-check-input:checked {
     background-color: var(--game-accent);
+    border-color: var(--game-accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--game-accent) 55%, transparent);
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--game-accent) 30%, transparent);
     border-color: var(--game-accent);
 }
 
 .task-label {
     font-size: 0.95rem;
     color: #efefef;
-    transition: color 0.2s;
+    transition: color 0.2s ease;
 }
 
 .strikethrough {
     text-decoration: line-through;
-    color: #4b5563 !important;
+    color: #52525b !important;
 }
 
 .toggle-arrow {
@@ -314,6 +413,12 @@ footer {
 }
 
 /* --- Responsive Layout --- */
+@media (min-width: 577px) {
+    .progress-track {
+        display: block;
+    }
+}
+
 @media (max-width: 992px) {
     .task-grid {
         flex-direction: column;
