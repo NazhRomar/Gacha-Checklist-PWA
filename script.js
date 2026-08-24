@@ -6,6 +6,13 @@ if ("serviceWorker" in navigator) {
     });
 }
 
+// Ask the browser to exempt this site's storage from automatic eviction.
+// Supported on Chrome/Android/desktop; Safari has no such API, so this is a
+// harmless no-op there (feature-detected, never throws).
+if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist();
+}
+
 const STORAGE_KEY = "gacha_pwa_v1";
 
 // Defaults for every field state can hold. Loading merges saved data OVER
