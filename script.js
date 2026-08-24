@@ -26,8 +26,7 @@ const DEFAULT_STATE = {
     lastW: 0,
     lastM: 0,
     gwEnabled: true,
-    gwEditable: false,
-    gwDays: [false, false, false, false, false, false, false],
+    gwDays: [null, null, null, null, null, null, null],
     gwPoints: 0,
     // Fixed anchor: Monday 2026-11-02 04:00 local, matching the existing
     // Monday 4am weekly-reset boundary (verified: 69d15h out from the
@@ -47,6 +46,9 @@ function loadState() {
     const merged = { ...DEFAULT_STATE, ...saved };
     if (!Array.isArray(merged.gwDays) || merged.gwDays.length !== 7) {
         merged.gwDays = [...DEFAULT_STATE.gwDays];
+    } else if (typeof merged.gwDays[0] === "boolean") {
+        // Migrate from the old boolean-per-day model.
+        merged.gwDays = merged.gwDays.map(v => v ? "done" : null);
     }
     return merged;
 }
@@ -65,12 +67,19 @@ const GI_COMMISSIONS_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : 
 const GI_RESIN_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Resin");
 
 const mondayIndex = (date) => (date.getDay() + 6) % 7;
+const emptyWeek = () => [null, null, null, null, null, null, null];
+
+// Transient (not persisted) weekly-progress edit session, entered from the
+// hamburger menu. A draft copy is edited in place and only written back to
+// `state` on Save; Cancel just throws it away.
+let gwEditing = false;
+let gwDraft = null;
 
 function runWeeklyStreakCycleCheck() {
     let didReset = false;
     while (Date.now() >= state.gwCycleEnd) {
         state.gwPoints = 0;
-        state.gwDays = [false, false, false, false, false, false, false];
+        state.gwDays = emptyWeek();
         state.gwCycleEnd += CYCLE_WEEKS * WEEK_MS;
         didReset = true;
     }
@@ -86,9 +95,31 @@ window.save = (isReset = false) => {
     document.getElementById("last-reset").innerText = state.rs || "-";
 };
 
-window.toggleWeeklyDay = (i) => {
-    state.gwDays[i] = !state.gwDays[i];
+const GW_CYCLE_STATES = ["done", "missed", null];
+
+window.startWeeklyProgressEdit = () => {
+    gwEditing = true;
+    gwDraft = [...state.gwDays];
+    buildDashboard();
+};
+
+window.cycleWeeklyDay = (i) => {
+    const cur = GW_CYCLE_STATES.indexOf(gwDraft[i]);
+    gwDraft[i] = GW_CYCLE_STATES[(cur + 1) % GW_CYCLE_STATES.length];
+    buildDashboard();
+};
+
+window.saveWeeklyProgressEdit = () => {
+    state.gwDays = gwDraft;
+    gwEditing = false;
+    gwDraft = null;
     window.save();
+    buildDashboard();
+};
+
+window.cancelWeeklyProgressEdit = () => {
+    gwEditing = false;
+    gwDraft = null;
     buildDashboard();
 };
 
@@ -142,33 +173,33 @@ window.setActiveType = (type) => {
 function renderWeeklyStreak() {
     if (!state.gwEnabled) return "";
 
+    if (gwEditing) return renderWeeklyStreakEditor();
+
     const todayIdx = mondayIndex(new Date());
     // Today's pip completes live as soon as both tasks are checked, without
     // waiting for the next daily reset to permanently commit it into gwDays.
-    const todayDoneLive = !state.gwDays[todayIdx]
+    const todayDoneLive = state.gwDays[todayIdx] !== "done"
         && !!state.checked[`gi-d-${GI_COMMISSIONS_IDX}`]
         && !!state.checked[`gi-d-${GI_RESIN_IDX}`];
 
     const pips = Array.from({ length: 7 }, (_, i) => {
         const label = DAY_LABELS[i];
-        const click = state.gwEditable ? `onclick="toggleWeeklyDay(${i})"` : "";
+        const val = state.gwDays[i];
+        if (i === todayIdx && (todayDoneLive || val === "done")) {
+            return `<div class="gw-pip completed" title="${label}">✓</div>`;
+        }
         if (i === todayIdx) {
-            return todayDoneLive || state.gwDays[i]
-                ? `<div class="gw-pip completed" title="${label}" ${click}>✓</div>`
-                : `<div class="gw-pip current" title="${label} (today)" ${click}>◆</div>`;
+            return `<div class="gw-pip current" title="${label} (today)">◆</div>`;
         }
-        if (i < todayIdx) {
-            return state.gwDays[i]
-                ? `<div class="gw-pip completed" title="${label}" ${click}>✓</div>`
-                : `<div class="gw-pip missed" title="${label} (missed)" ${click}>✕</div>`;
-        }
-        // Future day - normally empty, but a manual override can still mark it done ahead of time.
-        return state.gwDays[i]
-            ? `<div class="gw-pip completed" title="${label}" ${click}>✓</div>`
-            : `<div class="gw-pip" title="${label}" ${click}></div>`;
+        if (val === "done") return `<div class="gw-pip completed" title="${label}">✓</div>`;
+        if (val === "missed") return `<div class="gw-pip missed" title="${label} (missed)">✕</div>`;
+        // Undecided: derive a display-only "missed" for past days so the row
+        // still reads correctly even if a day was never explicitly resolved.
+        if (i < todayIdx) return `<div class="gw-pip missed" title="${label} (missed)">✕</div>`;
+        return `<div class="gw-pip" title="${label}"></div>`;
     }).join("");
 
-    const completedCount = state.gwDays.filter(Boolean).length + (todayDoneLive ? 1 : 0);
+    const completedCount = state.gwDays.filter(v => v === "done").length + (todayDoneLive ? 1 : 0);
 
     return `
     <div class="gw-widget">
@@ -176,10 +207,33 @@ function renderWeeklyStreak() {
             <span class="gw-title">Weekly Progress</span>
             <span class="gw-count">${completedCount}/7</span>
         </div>
-        <div class="gw-bar ${state.gwEditable ? "editable" : ""}">${pips}</div>
+        <div class="gw-bar">${pips}</div>
         <div class="gw-footer">
             <span>Reward Progress: <b>${state.gwPoints}/8</b></span>
             <span id="gw-reset-timer">--</span>
+        </div>
+    </div>`;
+}
+
+function renderWeeklyStreakEditor() {
+    const pips = Array.from({ length: 7 }, (_, i) => {
+        const label = DAY_LABELS[i];
+        const val = gwDraft[i];
+        const cls = val === "done" ? "completed" : val === "missed" ? "missed" : "";
+        const icon = val === "done" ? "✓" : val === "missed" ? "✕" : "";
+        return `<div class="gw-pip ${cls}" title="${label}" onclick="cycleWeeklyDay(${i})">${icon}</div>`;
+    }).join("");
+
+    return `
+    <div class="gw-widget">
+        <div class="gw-header">
+            <span class="gw-title">Weekly Progress</span>
+            <span class="gw-edit-hint">Tap a day: done → missed → clear</span>
+        </div>
+        <div class="gw-bar editable">${pips}</div>
+        <div class="gw-edit-actions">
+            <button type="button" class="gw-btn gw-btn-cancel" onclick="cancelWeeklyProgressEdit()">Cancel</button>
+            <button type="button" class="gw-btn gw-btn-save" onclick="saveWeeklyProgressEdit()">Save</button>
         </div>
     </div>`;
 }
@@ -368,8 +422,8 @@ function updateMenu() {
         <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}>
         <span class="opt-item-badge gi-theme">GI</span> Weekly Streak
     </a></li>` + (state.gwEnabled ? `
-    <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="toggleConfig('gweditable'); return false;">
-        <input type="checkbox" class="form-check-input mt-0" ${state.gwEditable ? "checked" : ""}> Edit Weekly Progress
+    <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="startWeeklyProgressEdit(); return false;">
+        <span class="opt-item-override">✎</span> Edit Weekly Progress
     </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="overrideRewardProgress(); return false;">
         <span class="opt-item-override">✎</span> Set Reward Progress (${state.gwPoints}/8)
@@ -403,8 +457,6 @@ window.toggleConfig = (type, id) => {
         state.hideFooter = !state.hideFooter;
     } else if (type === 'weeklystreak') {
         state.gwEnabled = !state.gwEnabled;
-    } else if (type === 'gweditable') {
-        state.gwEditable = !state.gwEditable;
     } else if (type === 'game') {
         if (state.hidden.includes(id)) {
             state.hidden = state.hidden.filter(h => h !== id);
@@ -422,8 +474,10 @@ window.toggleConfig = (type, id) => {
 if (state.lastD < getReset("d") - 86400000) {
     if (state.gwEnabled) {
         const endedDayIdx = mondayIndex(new Date(getReset("d") - 86400000));
-        if (state.checked[`gi-d-${GI_COMMISSIONS_IDX}`] && state.checked[`gi-d-${GI_RESIN_IDX}`]) {
-            state.gwDays[endedDayIdx] = true;
+        // Don't clobber a day already explicitly resolved (e.g. via manual edit).
+        if (state.gwDays[endedDayIdx] == null) {
+            const done = state.checked[`gi-d-${GI_COMMISSIONS_IDX}`] && state.checked[`gi-d-${GI_RESIN_IDX}`];
+            state.gwDays[endedDayIdx] = done ? "done" : "missed";
         }
     }
     games.forEach((g) => {
@@ -440,10 +494,10 @@ if (state.lastD < getReset("d") - 86400000) {
 
 // 2. Weekly Reset Check
 if (state.lastW < getReset("w") - 604800000) {
-    if (state.gwEnabled && state.gwDays.filter(Boolean).length >= 5) {
+    if (state.gwEnabled && state.gwDays.filter(v => v === "done").length >= 5) {
         state.gwPoints = Math.min(8, state.gwPoints + 1);
     }
-    state.gwDays = [false, false, false, false, false, false, false];
+    state.gwDays = emptyWeek();
     games.forEach((g) => {
         g.weekly.forEach((t, i) => {
             delete state.checked[`${g.id}-w-${i}`];
