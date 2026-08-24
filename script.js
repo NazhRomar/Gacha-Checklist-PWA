@@ -6,7 +6,13 @@ if ("serviceWorker" in navigator) {
     });
 }
 
-let state = JSON.parse(localStorage.getItem("gacha_pwa_v1")) || {
+const STORAGE_KEY = "gacha_pwa_v1";
+
+// Defaults for every field state can hold. Loading merges saved data OVER
+// this, field by field, so a save from an older version of the app (missing
+// newer fields) still ends up with valid defaults instead of `undefined` -
+// no manual "if (!state.x) ..." patch needed per field going forward.
+const DEFAULT_STATE = {
     checked: {},
     hidden: [],
     menus: [],
@@ -22,19 +28,29 @@ let state = JSON.parse(localStorage.getItem("gacha_pwa_v1")) || {
     gwEnabled: true,
     gwDays: [false, false, false, false, false, false, false],
     gwPoints: 0,
-    gwCycleEnd: null,
+    // Fixed anchor: Monday 2026-11-02 04:00 local, matching the existing
+    // Monday 4am weekly-reset boundary (verified: 69d15h out from the
+    // reference date the requirement was written against).
+    gwCycleEnd: new Date("2026-11-02T04:00:00").getTime(),
     up: null,
     rs: null,
 };
-if (!state.collapsed) state.collapsed = [];
-if (!state.activeType) state.activeType = "d";
-if (state.gwEnabled === undefined) state.gwEnabled = true;
-if (!Array.isArray(state.gwDays) || state.gwDays.length !== 7) state.gwDays = [false, false, false, false, false, false, false];
-if (state.gwPoints === undefined) state.gwPoints = 0;
-// Fixed anchor: Monday 2026-11-02 04:00 local, matching the existing Monday
-// 4am weekly-reset boundary (verified: 69d15h out from the reference date
-// the requirement was written against).
-if (!state.gwCycleEnd) state.gwCycleEnd = new Date("2026-11-02T04:00:00").getTime();
+
+function loadState() {
+    let saved = {};
+    try {
+        saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch (e) {
+        saved = {};
+    }
+    const merged = { ...DEFAULT_STATE, ...saved };
+    if (!Array.isArray(merged.gwDays) || merged.gwDays.length !== 7) {
+        merged.gwDays = [...DEFAULT_STATE.gwDays];
+    }
+    return merged;
+}
+
+let state = loadState();
 
 const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly" };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -69,15 +85,10 @@ window.save = (isReset = false) => {
     document.getElementById("last-reset").innerText = state.rs || "-";
 };
 
-window.overrideWeeklyProgress = () => {
-    const current = state.gwDays.filter(Boolean).length;
-    const val = prompt("Set completed days this week (0-7)", current);
-    if (val !== null && val !== "") {
-        const n = Math.min(7, Math.max(0, parseInt(val) || 0));
-        state.gwDays = Array.from({ length: 7 }, (_, i) => i < n);
-        window.save();
-        buildDashboard();
-    }
+window.toggleWeeklyDay = (i) => {
+    state.gwDays[i] = !state.gwDays[i];
+    window.save();
+    buildDashboard();
 };
 
 window.overrideRewardProgress = () => {
@@ -139,17 +150,21 @@ function renderWeeklyStreak() {
 
     const pips = Array.from({ length: 7 }, (_, i) => {
         const label = DAY_LABELS[i];
+        const click = `onclick="toggleWeeklyDay(${i})"`;
         if (i === todayIdx) {
             return todayDoneLive || state.gwDays[i]
-                ? `<div class="gw-pip completed" title="${label}">✓</div>`
-                : `<div class="gw-pip current" title="${label} (today)">◆</div>`;
+                ? `<div class="gw-pip completed" title="${label}" ${click}>✓</div>`
+                : `<div class="gw-pip current" title="${label} (today)" ${click}>◆</div>`;
         }
         if (i < todayIdx) {
             return state.gwDays[i]
-                ? `<div class="gw-pip completed" title="${label}">✓</div>`
-                : `<div class="gw-pip missed" title="${label} (missed)">✕</div>`;
+                ? `<div class="gw-pip completed" title="${label}" ${click}>✓</div>`
+                : `<div class="gw-pip missed" title="${label} (missed)" ${click}>✕</div>`;
         }
-        return `<div class="gw-pip" title="${label}"></div>`;
+        // Future day - normally empty, but a manual override can still mark it done ahead of time.
+        return state.gwDays[i]
+            ? `<div class="gw-pip completed" title="${label}" ${click}>✓</div>`
+            : `<div class="gw-pip" title="${label}" ${click}></div>`;
     }).join("");
 
     const completedCount = state.gwDays.filter(Boolean).length + (todayDoneLive ? 1 : 0);
@@ -352,9 +367,6 @@ function updateMenu() {
         <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}>
         <span class="opt-item-badge gi-theme">GI</span> Weekly Streak
     </a></li>` + (state.gwEnabled ? `
-    <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="overrideWeeklyProgress(); return false;">
-        <span class="opt-item-override">✎</span> Set Weekly Progress (${state.gwDays.filter(Boolean).length}/7)
-    </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="overrideRewardProgress(); return false;">
         <span class="opt-item-override">✎</span> Set Reward Progress (${state.gwPoints}/8)
     </a></li>` : "");

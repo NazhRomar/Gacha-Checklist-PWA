@@ -473,7 +473,13 @@ body {
     background: var(--card-bg);
     border: 2px solid rgba(255, 255, 255, 0.15);
     color: transparent;
+    cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.gw-pip:hover {
+    transform: scale(1.15);
+    border-color: var(--game-accent);
 }
 
 .gw-pip.completed {
