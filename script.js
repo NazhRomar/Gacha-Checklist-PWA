@@ -19,14 +19,40 @@ let state = JSON.parse(localStorage.getItem("gacha_pwa_v1")) || {
     lastD: 0,
     lastW: 0,
     lastM: 0,
+    gwEnabled: true,
+    gwProgress: 0,
+    gwPoints: 0,
+    gwCycleEnd: null,
     up: null,
     rs: null,
 };
 if (!state.collapsed) state.collapsed = [];
 if (!state.activeType) state.activeType = "d";
+if (state.gwEnabled === undefined) state.gwEnabled = true;
+if (state.gwProgress === undefined) state.gwProgress = 0;
+if (state.gwPoints === undefined) state.gwPoints = 0;
+if (!state.gwCycleEnd) state.gwCycleEnd = new Date("2026-11-02T04:00:00").getTime();
 
 const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly" };
 const isMobile = () => window.innerWidth < 768;
+
+const WEEK_MS = 604800000;
+const CYCLE_WEEKS = 12;
+
+const GI = games.find(g => g.id === "gi");
+const GI_COMMISSIONS_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Commissions");
+const GI_RESIN_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Resin");
+
+function runWeeklyStreakCycleCheck() {
+    let didReset = false;
+    while (Date.now() >= state.gwCycleEnd) {
+        state.gwPoints = 0;
+        state.gwProgress = 0;
+        state.gwCycleEnd += CYCLE_WEEKS * WEEK_MS;
+        didReset = true;
+    }
+    if (didReset) window.save(true);
+}
 
 // --- Save & Global Functions ---
 window.save = (isReset = false) => {
@@ -75,6 +101,38 @@ window.setActiveType = (type) => {
     buildDashboard();
 };
 
+function renderWeeklyStreak() {
+    if (!state.gwEnabled) return "";
+
+    // Today's pip completes live as soon as both tasks are checked, without
+    // waiting for the next daily reset to permanently commit gwProgress.
+    const todayDoneLive = state.gwProgress < 5
+        && !!state.checked[`gi-d-${GI_COMMISSIONS_IDX}`]
+        && !!state.checked[`gi-d-${GI_RESIN_IDX}`];
+    const displayProgress = state.gwProgress + (todayDoneLive ? 1 : 0);
+
+    const pips = Array.from({ length: 5 }, (_, i) => {
+        if (i < state.gwProgress) return `<div class="gw-pip completed">✓</div>`;
+        if (i === state.gwProgress) return todayDoneLive
+            ? `<div class="gw-pip completed">✓</div>`
+            : `<div class="gw-pip current">◆</div>`;
+        return `<div class="gw-pip"></div>`;
+    }).join("");
+
+    return `
+    <div class="gw-widget">
+        <div class="gw-header">
+            <span class="gw-title">Weekly Progress</span>
+            <span class="gw-count">${displayProgress}/5</span>
+        </div>
+        <div class="gw-bar">${pips}</div>
+        <div class="gw-footer">
+            <span>Reward Progress: <b>${state.gwPoints}/8</b></span>
+            <span id="gw-reset-timer">--</span>
+        </div>
+    </div>`;
+}
+
 // --- UI Logic ---
 function buildDashboard() {
     const visibleGames = games.filter(g => !state.hidden.includes(g.id));
@@ -120,6 +178,7 @@ function buildDashboard() {
                     <div class="task-column ${state.activeType === "w" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
                     ${!state.hideMonthly ? `<div class="task-column ${state.activeType === "m" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
                 </div>
+                ${g.id === "gi" ? renderWeeklyStreak() : ""}
             </div>`;
         }).join("");
 
@@ -214,6 +273,14 @@ function updateLiveText() {
     document.getElementById("daily-timer").innerText = `${pad(Math.floor(d / 3600000))}:${pad(Math.floor((d % 3600000) / 60000))}:${pad(Math.floor((d % 60000) / 1000))}`;
     document.getElementById("weekly-timer").innerText = Math.ceil((getReset("w") - now) / 86400000) + "d";
     document.getElementById("monthly-timer").innerText = Math.ceil((getReset("m") - now) / 86400000) + "d";
+
+    const gwTimer = document.getElementById("gw-reset-timer");
+    if (gwTimer) {
+        const msLeft = Math.max(0, state.gwCycleEnd - now);
+        const daysLeft = Math.floor(msLeft / 86400000);
+        const hoursLeft = Math.floor((msLeft % 86400000) / 3600000);
+        gwTimer.innerText = `Resets in ${daysLeft}d ${hoursLeft}h`;
+    }
 }
 
 function getReset(type) {
@@ -238,6 +305,9 @@ function updateMenu() {
     </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('footer'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.hideFooter ? "checked" : ""}> Hide Footer
+    </a></li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('weeklystreak'); return false;">
+        <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}> Genshin Weekly Streak
     </a></li><hr class="dropdown-divider">`;
 
     html += `<li class="dropdown-header">Games</li>`;
@@ -273,6 +343,8 @@ window.toggleConfig = (type, id) => {
         state.hideTimers = !state.hideTimers;
     } else if (type === 'footer') {
         state.hideFooter = !state.hideFooter;
+    } else if (type === 'weeklystreak') {
+        state.gwEnabled = !state.gwEnabled;
     } else if (type === 'game') {
         if (state.hidden.includes(id)) {
             state.hidden = state.hidden.filter(h => h !== id);
@@ -288,6 +360,9 @@ window.toggleConfig = (type, id) => {
 
 // 1. Daily Reset Check
 if (state.lastD < getReset("d") - 86400000) {
+    if (state.gwEnabled && state.gwProgress < 5 && state.checked[`gi-d-${GI_COMMISSIONS_IDX}`] && state.checked[`gi-d-${GI_RESIN_IDX}`]) {
+        state.gwProgress++;
+    }
     games.forEach((g) => {
         g.daily.forEach((t, i) => {
             delete state.checked[`${g.id}-d-${i}`];
@@ -302,6 +377,10 @@ if (state.lastD < getReset("d") - 86400000) {
 
 // 2. Weekly Reset Check
 if (state.lastW < getReset("w") - 604800000) {
+    if (state.gwEnabled && state.gwProgress >= 5) {
+        state.gwPoints = Math.min(8, state.gwPoints + 1);
+    }
+    state.gwProgress = 0;
     games.forEach((g) => {
         g.weekly.forEach((t, i) => {
             delete state.checked[`${g.id}-w-${i}`];
@@ -333,6 +412,8 @@ if (state.lastM < currentMonthlyReset.getTime()) {
     state.lastM = Date.now();
     window.save(true);
 }
+
+runWeeklyStreakCycleCheck();
 
 buildDashboard();
 setInterval(updateLiveText, 1000);
