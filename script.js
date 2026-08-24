@@ -26,6 +26,7 @@ const DEFAULT_STATE = {
     lastW: 0,
     lastM: 0,
     gwEnabled: true,
+    gwEditable: false,
     gwDays: [false, false, false, false, false, false, false],
     gwPoints: 0,
     // Fixed anchor: Monday 2026-11-02 04:00 local, matching the existing
@@ -150,7 +151,7 @@ function renderWeeklyStreak() {
 
     const pips = Array.from({ length: 7 }, (_, i) => {
         const label = DAY_LABELS[i];
-        const click = `onclick="toggleWeeklyDay(${i})"`;
+        const click = state.gwEditable ? `onclick="toggleWeeklyDay(${i})"` : "";
         if (i === todayIdx) {
             return todayDoneLive || state.gwDays[i]
                 ? `<div class="gw-pip completed" title="${label}" ${click}>✓</div>`
@@ -175,7 +176,7 @@ function renderWeeklyStreak() {
             <span class="gw-title">Weekly Progress</span>
             <span class="gw-count">${completedCount}/7</span>
         </div>
-        <div class="gw-bar">${pips}</div>
+        <div class="gw-bar ${state.gwEditable ? "editable" : ""}">${pips}</div>
         <div class="gw-footer">
             <span>Reward Progress: <b>${state.gwPoints}/8</b></span>
             <span id="gw-reset-timer">--</span>
@@ -367,6 +368,9 @@ function updateMenu() {
         <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}>
         <span class="opt-item-badge gi-theme">GI</span> Weekly Streak
     </a></li>` + (state.gwEnabled ? `
+    <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="toggleConfig('gweditable'); return false;">
+        <input type="checkbox" class="form-check-input mt-0" ${state.gwEditable ? "checked" : ""}> Edit Weekly Progress
+    </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="overrideRewardProgress(); return false;">
         <span class="opt-item-override">✎</span> Set Reward Progress (${state.gwPoints}/8)
     </a></li>` : "");
@@ -399,6 +403,8 @@ window.toggleConfig = (type, id) => {
         state.hideFooter = !state.hideFooter;
     } else if (type === 'weeklystreak') {
         state.gwEnabled = !state.gwEnabled;
+    } else if (type === 'gweditable') {
+        state.gwEditable = !state.gwEditable;
     } else if (type === 'game') {
         if (state.hidden.includes(id)) {
             state.hidden = state.hidden.filter(h => h !== id);

@@ -473,11 +473,14 @@ body {
     background: var(--card-bg);
     border: 2px solid rgba(255, 255, 255, 0.15);
     color: transparent;
-    cursor: pointer;
     transition: all 0.2s ease;
 }
 
-.gw-pip:hover {
+.gw-bar.editable .gw-pip {
+    cursor: pointer;
+}
+
+.gw-bar.editable .gw-pip:hover {
     transform: scale(1.15);
     border-color: var(--game-accent);
 }
@@ -519,7 +522,7 @@ body {
 .checklist-wrapper {
     display: flex;
     align-items: stretch;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     border-radius: 12px;
     overflow: hidden;
     background: rgba(255, 255, 255, 0.02);
@@ -536,7 +539,7 @@ body {
     flex-grow: 1;
     display: flex;
     align-items: center;
-    padding: 10px 15px;
+    padding: 7px 15px;
     cursor: pointer;
 }
 
@@ -793,8 +796,8 @@ footer {
     }
 
     .checklist-main {
-        padding: 10px 12px;
-        min-height: 40px;
+        padding: 7px 12px;
+        min-height: 36px;
     }
 
     .checklist-toggle-box {
