@@ -31,6 +31,7 @@ body {
     backdrop-filter: blur(18px);
     border-bottom: 1px solid var(--border-color);
     padding: 0.7rem 0;
+    z-index: 1030;
 }
 
 .navbar .btn {
@@ -85,6 +86,20 @@ body {
 
 .dropdown-item .form-check-input {
     margin-right: 10px;
+}
+
+.opt-item-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--game-accent) 20%, transparent);
+    color: var(--game-accent);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.65rem;
+    font-weight: 800;
+    flex-shrink: 0;
 }
 
 .navbar .h5 {

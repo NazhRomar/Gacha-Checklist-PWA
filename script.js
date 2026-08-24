@@ -60,7 +60,6 @@ window.setActiveGame = (gid) => {
     state.activeGame = gid;
     window.save();
     buildDashboard();
-    document.getElementById(`section-${gid}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
 window.setActiveType = (type) => {
@@ -239,7 +238,8 @@ function updateMenu() {
                 const taskId = `${g.id}-d-${i}`;
                 const isVisible = !state.hidden.includes(taskId);
                 optionalItemsHtml += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('game', '${taskId}'); return false;">
-                    <input type="checkbox" class="form-check-input mt-0" ${isVisible ? "checked" : ""}> ${g.name}: ${t.label}
+                    <input type="checkbox" class="form-check-input mt-0" ${isVisible ? "checked" : ""}>
+                    <span class="opt-item-badge ${g.style}">${g.badge}</span> ${t.label}
                 </a></li>`;
             }
         });
