@@ -1,4 +1,4 @@
-const CACHE = "gacha-checklist-v3";
+const CACHE = "gacha-checklist-v4";
 
 const PRECACHE_URLS = [
     "./",
@@ -11,6 +11,10 @@ const PRECACHE_URLS = [
     "./images/icon-512.png",
     "./images/icon-192-maskable.png",
     "./images/icon-512-maskable.png",
+    "./images/gi-icon.png",
+    "./images/hi3-icon.png",
+    "./images/hsr-icon.png",
+    "./images/zzz-icon.png",
 ];
 
 self.addEventListener("install", (event) => {

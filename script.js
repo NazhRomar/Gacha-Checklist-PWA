@@ -82,9 +82,8 @@ function buildDashboard() {
             const { done, total } = taskCounts(g);
             const doneAll = total > 0 && done === total;
             const isActive = g.id === state.activeGame;
-            return `<button type="button" class="quick-pill ${g.style} ${doneAll ? "done" : ""} ${isActive ? "active" : ""}" onclick="setActiveGame('${g.id}')">
-                <span class="quick-pill-badge">${g.badge}</span>
-                <span class="quick-pill-name">${g.name}</span>
+            return `<button type="button" class="quick-pill ${g.style} ${doneAll ? "done" : ""} ${isActive ? "active" : ""}" onclick="setActiveGame('${g.id}')" title="${g.name}">
+                <span class="quick-pill-icon"><img src="images/${g.icon}" alt="${g.name}"></span>
                 <span class="quick-pill-count">${done}/${total}</span>
             </button>`;
         }).join("");

@@ -2,7 +2,7 @@ export const games = [
     {
         id: "gi",
         name: "Genshin Impact",
-        badge: "GI",
+        badge: "GI", icon: "gi-icon.png",
         style: "gi-theme",
         daily: [
             "Login",
@@ -18,7 +18,7 @@ export const games = [
     {
         id: "hi3",
         name: "Honkai Impact 3rd",
-        badge: "HI3",
+        badge: "HI3", icon: "hi3-icon.png",
         style: "hi3-theme",
         daily: [
             "Daily Login", "Mei's Snacks", "Material Events", "Coin Collection",
@@ -33,7 +33,7 @@ export const games = [
     {
         id: "hsr",
         name: "Honkai: Star Rail",
-        badge: "HSR",
+        badge: "HSR", icon: "hsr-icon.png",
         style: "hsr-theme",
         daily: ["Daily Training", "Assignments"],
         weekly: ["Echo of War", "Simulated Universe/Currency Wars"],
@@ -42,7 +42,7 @@ export const games = [
     {
         id: "zzz",
         name: "Zenless Zone Zero",
-        badge: "ZZZ",
+        badge: "ZZZ", icon: "zzz-icon.png",
         style: "zzz-theme",
         daily: [
             "Login",
