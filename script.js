@@ -90,9 +90,45 @@ function runWeeklyStreakCycleCheck() {
 window.save = (isReset = false) => {
     state.up = new Date().toLocaleString();
     if (isReset) state.rs = new Date().toLocaleString();
-    localStorage.setItem("gacha_pwa_v1", JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     document.getElementById("last-updated").innerText = state.up || "-";
     document.getElementById("last-reset").innerText = state.rs || "-";
+};
+
+window.backupProgress = () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `gacha-checklist-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
+
+window.restoreProgress = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json";
+    input.onchange = () => {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const parsed = JSON.parse(reader.result);
+                if (typeof parsed !== "object" || parsed === null) throw new Error("bad shape");
+                localStorage.setItem(STORAGE_KEY, reader.result);
+                alert("Progress restored. Reloading…");
+                location.reload();
+            } catch (e) {
+                alert("That doesn't look like a valid backup file.");
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
 };
 
 const GW_CYCLE_STATES = ["done", "missed", null];
@@ -411,6 +447,12 @@ function updateMenu() {
     </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('footer'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.hideFooter ? "checked" : ""}> Hide Footer
+    </a></li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="backupProgress(); return false;">
+        <span class="opt-item-override">⬇</span> Backup Progress
+    </a></li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="restoreProgress(); return false;">
+        <span class="opt-item-override">⬆</span> Restore Progress
     </a></li><hr class="dropdown-divider">`;
 
     html += `<li class="dropdown-header">Games</li>`;

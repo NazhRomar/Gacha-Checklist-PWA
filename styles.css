@@ -492,9 +492,9 @@ body {
 }
 
 .gw-pip.missed {
-    border-color: rgba(248, 113, 113, 0.35);
-    color: rgba(248, 113, 113, 0.6);
-    background: rgba(248, 113, 113, 0.06);
+    border-color: #f87171;
+    color: #f87171;
+    background: rgba(248, 113, 113, 0.22);
     font-size: 0.6rem;
 }
 

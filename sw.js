@@ -1,4 +1,4 @@
-const CACHE = "gacha-checklist-v13";
+const CACHE = "gacha-checklist-v14";
 
 const PRECACHE_URLS = [
     "./",
