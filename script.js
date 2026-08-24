@@ -69,6 +69,26 @@ window.save = (isReset = false) => {
     document.getElementById("last-reset").innerText = state.rs || "-";
 };
 
+window.overrideWeeklyProgress = () => {
+    const current = state.gwDays.filter(Boolean).length;
+    const val = prompt("Set completed days this week (0-7)", current);
+    if (val !== null && val !== "") {
+        const n = Math.min(7, Math.max(0, parseInt(val) || 0));
+        state.gwDays = Array.from({ length: 7 }, (_, i) => i < n);
+        window.save();
+        buildDashboard();
+    }
+};
+
+window.overrideRewardProgress = () => {
+    const val = prompt("Set reward points (0-8)", state.gwPoints);
+    if (val !== null && val !== "") {
+        state.gwPoints = Math.min(8, Math.max(0, parseInt(val) || 0));
+        window.save();
+        buildDashboard();
+    }
+};
+
 function applyGlobalVisibility() {
     document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers);
     document.getElementById("app-footer").classList.toggle("d-none", state.hideFooter);
@@ -331,7 +351,13 @@ function updateMenu() {
     let optionalItemsHtml = `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('weeklystreak'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}>
         <span class="opt-item-badge gi-theme">GI</span> Weekly Streak
-    </a></li>`;
+    </a></li>` + (state.gwEnabled ? `
+    <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="overrideWeeklyProgress(); return false;">
+        <span class="opt-item-override">✎</span> Set Weekly Progress (${state.gwDays.filter(Boolean).length}/7)
+    </a></li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="overrideRewardProgress(); return false;">
+        <span class="opt-item-override">✎</span> Set Reward Progress (${state.gwPoints}/8)
+    </a></li>` : "");
     games.forEach(g => {
         g.daily.forEach((t, i) => {
             if (typeof t === 'object' && t.optional) {

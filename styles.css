@@ -105,6 +105,20 @@ body {
     flex-shrink: 0;
 }
 
+.opt-item-override {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    color: #71717a;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+.dropdown-item:hover .opt-item-override {
+    color: #e4e4e7;
+}
+
 .navbar .h5 {
     letter-spacing: 2px;
     background: linear-gradient(90deg, #fff, #a1a1aa);
