@@ -92,6 +92,7 @@ body {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-width: 38px;
     padding: 1px 6px;
     border-radius: 6px;
     background: color-mix(in srgb, var(--game-accent) 20%, transparent);
@@ -99,6 +100,8 @@ body {
     font-family: "JetBrains Mono", monospace;
     font-size: 0.65rem;
     font-weight: 800;
+    text-align: center;
+    line-height: 1;
     flex-shrink: 0;
 }
 
@@ -257,18 +260,14 @@ body {
     display: flex;
     gap: 8px;
     padding: 10px 12px;
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-
-.quick-nav::-webkit-scrollbar {
-    display: none;
 }
 
 .quick-pill {
-    flex: 0 0 auto;
+    flex: 1 1 0;
+    min-width: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     padding: 4px 10px 4px 4px;
     border-radius: 999px;
@@ -541,16 +540,38 @@ footer {
 
 /* Below md: one game + one task-type visible at a time, driven by tabs */
 @media (max-width: 767.98px) {
+    /* App-shell layout: header rows are fixed height, only the
+       checklist itself scrolls, so the game bar / title / type tabs
+       stay in place no matter how long the list is. */
+    html, body {
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    .main-content {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        margin-top: 0;
+    }
+
     .game-section.visible {
         display: none;
     }
 
     .game-section.visible.mobile-active {
-        display: block;
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        margin-bottom: 0;
     }
 
     .game-header {
         cursor: default;
+        flex-shrink: 0;
     }
 
     .collapse-arrow {
@@ -559,10 +580,13 @@ footer {
 
     .type-tabs {
         display: flex;
+        flex-shrink: 0;
     }
 
     .task-grid {
-        flex-direction: row;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
     }
 
     .task-column {
@@ -572,6 +596,10 @@ footer {
 
     .task-column.type-active {
         display: block;
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
 
     /* Type is already shown by the tab above; no need to repeat it here */
@@ -595,15 +623,14 @@ footer {
     }
 
     .quick-pill {
-        padding: 5px 12px 5px 5px;
-        font-size: 0.7rem;
-        gap: 6px;
+        padding: 4px 8px 4px 4px;
+        font-size: 0.68rem;
+        gap: 5px;
     }
 
-    .quick-pill-badge {
-        width: 22px;
-        height: 22px;
-        font-size: 0.52rem;
+    .quick-pill-icon {
+        width: 24px;
+        height: 24px;
     }
 
     .quick-pill-count {

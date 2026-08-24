@@ -12,6 +12,8 @@ let state = JSON.parse(localStorage.getItem("gacha_pwa_v1")) || {
     menus: [],
     collapsed: [],
     hideMonthly: false,
+    hideTimers: false,
+    hideFooter: false,
     activeGame: null,
     activeType: "d",
     lastD: 0,
@@ -34,6 +36,11 @@ window.save = (isReset = false) => {
     document.getElementById("last-updated").innerText = state.up || "-";
     document.getElementById("last-reset").innerText = state.rs || "-";
 };
+
+function applyGlobalVisibility() {
+    document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers);
+    document.getElementById("app-footer").classList.toggle("d-none", state.hideFooter);
+}
 
 function taskCounts(g) {
     let done = 0, total = 0;
@@ -116,6 +123,7 @@ function buildDashboard() {
             </div>`;
         }).join("");
 
+    applyGlobalVisibility();
     updateMenu();
     updateLiveText();
 }
@@ -224,6 +232,12 @@ function getReset(type) {
 function updateMenu() {
     let html = `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('monthly'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.hideMonthly ? "checked" : ""}> Hide Monthly Column
+    </a></li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('timers'); return false;">
+        <input type="checkbox" class="form-check-input mt-0" ${state.hideTimers ? "checked" : ""}> Hide Reset Timers
+    </a></li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('footer'); return false;">
+        <input type="checkbox" class="form-check-input mt-0" ${state.hideFooter ? "checked" : ""}> Hide Footer
     </a></li><hr class="dropdown-divider">`;
 
     html += `<li class="dropdown-header">Games</li>`;
@@ -255,6 +269,10 @@ function updateMenu() {
 window.toggleConfig = (type, id) => {
     if (type === 'monthly') {
         state.hideMonthly = !state.hideMonthly;
+    } else if (type === 'timers') {
+        state.hideTimers = !state.hideTimers;
+    } else if (type === 'footer') {
+        state.hideFooter = !state.hideFooter;
     } else if (type === 'game') {
         if (state.hidden.includes(id)) {
             state.hidden = state.hidden.filter(h => h !== id);
