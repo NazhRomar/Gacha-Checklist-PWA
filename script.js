@@ -20,7 +20,7 @@ let state = JSON.parse(localStorage.getItem("gacha_pwa_v1")) || {
     lastW: 0,
     lastM: 0,
     gwEnabled: true,
-    gwProgress: 0,
+    gwDays: [false, false, false, false, false, false, false],
     gwPoints: 0,
     gwCycleEnd: null,
     up: null,
@@ -29,11 +29,15 @@ let state = JSON.parse(localStorage.getItem("gacha_pwa_v1")) || {
 if (!state.collapsed) state.collapsed = [];
 if (!state.activeType) state.activeType = "d";
 if (state.gwEnabled === undefined) state.gwEnabled = true;
-if (state.gwProgress === undefined) state.gwProgress = 0;
+if (!Array.isArray(state.gwDays) || state.gwDays.length !== 7) state.gwDays = [false, false, false, false, false, false, false];
 if (state.gwPoints === undefined) state.gwPoints = 0;
+// Fixed anchor: Monday 2026-11-02 04:00 local, matching the existing Monday
+// 4am weekly-reset boundary (verified: 69d15h out from the reference date
+// the requirement was written against).
 if (!state.gwCycleEnd) state.gwCycleEnd = new Date("2026-11-02T04:00:00").getTime();
 
 const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly" };
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const isMobile = () => window.innerWidth < 768;
 
 const WEEK_MS = 604800000;
@@ -43,11 +47,13 @@ const GI = games.find(g => g.id === "gi");
 const GI_COMMISSIONS_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Commissions");
 const GI_RESIN_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Resin");
 
+const mondayIndex = (date) => (date.getDay() + 6) % 7;
+
 function runWeeklyStreakCycleCheck() {
     let didReset = false;
     while (Date.now() >= state.gwCycleEnd) {
         state.gwPoints = 0;
-        state.gwProgress = 0;
+        state.gwDays = [false, false, false, false, false, false, false];
         state.gwCycleEnd += CYCLE_WEEKS * WEEK_MS;
         didReset = true;
     }
@@ -104,26 +110,35 @@ window.setActiveType = (type) => {
 function renderWeeklyStreak() {
     if (!state.gwEnabled) return "";
 
+    const todayIdx = mondayIndex(new Date());
     // Today's pip completes live as soon as both tasks are checked, without
-    // waiting for the next daily reset to permanently commit gwProgress.
-    const todayDoneLive = state.gwProgress < 5
+    // waiting for the next daily reset to permanently commit it into gwDays.
+    const todayDoneLive = !state.gwDays[todayIdx]
         && !!state.checked[`gi-d-${GI_COMMISSIONS_IDX}`]
         && !!state.checked[`gi-d-${GI_RESIN_IDX}`];
-    const displayProgress = state.gwProgress + (todayDoneLive ? 1 : 0);
 
-    const pips = Array.from({ length: 5 }, (_, i) => {
-        if (i < state.gwProgress) return `<div class="gw-pip completed">✓</div>`;
-        if (i === state.gwProgress) return todayDoneLive
-            ? `<div class="gw-pip completed">✓</div>`
-            : `<div class="gw-pip current">◆</div>`;
-        return `<div class="gw-pip"></div>`;
+    const pips = Array.from({ length: 7 }, (_, i) => {
+        const label = DAY_LABELS[i];
+        if (i === todayIdx) {
+            return todayDoneLive || state.gwDays[i]
+                ? `<div class="gw-pip completed" title="${label}">✓</div>`
+                : `<div class="gw-pip current" title="${label} (today)">◆</div>`;
+        }
+        if (i < todayIdx) {
+            return state.gwDays[i]
+                ? `<div class="gw-pip completed" title="${label}">✓</div>`
+                : `<div class="gw-pip missed" title="${label} (missed)">✕</div>`;
+        }
+        return `<div class="gw-pip" title="${label}"></div>`;
     }).join("");
+
+    const completedCount = state.gwDays.filter(Boolean).length + (todayDoneLive ? 1 : 0);
 
     return `
     <div class="gw-widget">
         <div class="gw-header">
             <span class="gw-title">Weekly Progress</span>
-            <span class="gw-count">${displayProgress}/5</span>
+            <span class="gw-count">${completedCount}/7</span>
         </div>
         <div class="gw-bar">${pips}</div>
         <div class="gw-footer">
@@ -297,7 +312,8 @@ function getReset(type) {
 }
 
 function updateMenu() {
-    let html = `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('monthly'); return false;">
+    let html = `<li class="dropdown-header">General</li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('monthly'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.hideMonthly ? "checked" : ""}> Hide Monthly Column
     </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('timers'); return false;">
@@ -305,9 +321,6 @@ function updateMenu() {
     </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('footer'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.hideFooter ? "checked" : ""}> Hide Footer
-    </a></li>
-    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('weeklystreak'); return false;">
-        <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}> Genshin Weekly Streak
     </a></li><hr class="dropdown-divider">`;
 
     html += `<li class="dropdown-header">Games</li>`;
@@ -315,7 +328,10 @@ function updateMenu() {
         <input type="checkbox" class="form-check-input mt-0" ${!state.hidden.includes(g.id) ? "checked" : ""}> ${g.name}
     </a></li>`).join("");
 
-    let optionalItemsHtml = "";
+    let optionalItemsHtml = `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('weeklystreak'); return false;">
+        <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}>
+        <span class="opt-item-badge gi-theme">GI</span> Weekly Streak
+    </a></li>`;
     games.forEach(g => {
         g.daily.forEach((t, i) => {
             if (typeof t === 'object' && t.optional) {
@@ -360,8 +376,11 @@ window.toggleConfig = (type, id) => {
 
 // 1. Daily Reset Check
 if (state.lastD < getReset("d") - 86400000) {
-    if (state.gwEnabled && state.gwProgress < 5 && state.checked[`gi-d-${GI_COMMISSIONS_IDX}`] && state.checked[`gi-d-${GI_RESIN_IDX}`]) {
-        state.gwProgress++;
+    if (state.gwEnabled) {
+        const endedDayIdx = mondayIndex(new Date(getReset("d") - 86400000));
+        if (state.checked[`gi-d-${GI_COMMISSIONS_IDX}`] && state.checked[`gi-d-${GI_RESIN_IDX}`]) {
+            state.gwDays[endedDayIdx] = true;
+        }
     }
     games.forEach((g) => {
         g.daily.forEach((t, i) => {
@@ -377,10 +396,10 @@ if (state.lastD < getReset("d") - 86400000) {
 
 // 2. Weekly Reset Check
 if (state.lastW < getReset("w") - 604800000) {
-    if (state.gwEnabled && state.gwProgress >= 5) {
+    if (state.gwEnabled && state.gwDays.filter(Boolean).length >= 5) {
         state.gwPoints = Math.min(8, state.gwPoints + 1);
     }
-    state.gwProgress = 0;
+    state.gwDays = [false, false, false, false, false, false, false];
     games.forEach((g) => {
         g.weekly.forEach((t, i) => {
             delete state.checked[`${g.id}-w-${i}`];

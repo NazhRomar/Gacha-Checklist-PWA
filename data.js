@@ -12,7 +12,7 @@ export const games = [
             { label: "Traveler's Tales", optional: true },
             { label: "Blessing of the Welkin Moon", optional: true }
         ],
-        weekly: ["Trounce Domain", "Cook", "Forge", "Realm Depot", "Furnishings", "Traveling Salesman"],
+        weekly: ["Trounce Domain", "Cook", "Forge", "Furnishings", "Realm Depot", "Traveling Salesman"],
         monthly: ["Stardust Exchange"],
     },
     {

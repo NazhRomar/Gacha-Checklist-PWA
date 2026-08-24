@@ -468,6 +468,13 @@ body {
     color: #000;
 }
 
+.gw-pip.missed {
+    border-color: rgba(248, 113, 113, 0.35);
+    color: rgba(248, 113, 113, 0.6);
+    background: rgba(248, 113, 113, 0.06);
+    font-size: 0.6rem;
+}
+
 .gw-pip.current {
     border-color: var(--game-accent);
     color: var(--game-accent);
