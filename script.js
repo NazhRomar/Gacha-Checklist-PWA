@@ -2,7 +2,52 @@ import { games } from './data.js';
 
 if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./sw.js");
+        navigator.serviceWorker.register("./sw.js").then(initSwStatus);
+    });
+} else {
+    window.addEventListener("DOMContentLoaded", () => {
+        const el = document.getElementById("sw-status");
+        if (el) el.innerHTML = `<span class="sw-dot sw-off"></span>Offline mode not supported`;
+    });
+}
+
+async function currentCacheVersion() {
+    try {
+        const keys = await caches.keys();
+        const match = keys.find(k => k.startsWith("gacha-checklist-"));
+        return match ? match.replace("gacha-checklist-", "") : "?";
+    } catch (e) {
+        return "?";
+    }
+}
+
+async function initSwStatus() {
+    const el = document.getElementById("sw-status");
+    if (!el) return;
+
+    const paint = async () => {
+        const version = await currentCacheVersion();
+        if (navigator.serviceWorker.controller) {
+            el.innerHTML = `<span class="sw-dot sw-active"></span>Offline ready (${version})`;
+        } else {
+            // Registered but not yet controlling this page (first-ever load).
+            el.innerHTML = `<span class="sw-dot sw-pending"></span>Offline mode starting&hellip; (${version})`;
+        }
+    };
+
+    paint();
+
+    // Fires once a new service worker takes over - i.e. an update finished
+    // installing and activated. Since sw.js calls skipWaiting()+clients.claim(),
+    // this happens automatically without the user doing anything.
+    let refreshed = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshed) return;
+        refreshed = true;
+        paint().then(async () => {
+            const version = await currentCacheVersion();
+            el.innerHTML = `<span class="sw-dot sw-active"></span>Updated to ${version} &mdash; <a href="#" class="sw-reload-link" onclick="location.reload();return false;">reload to apply</a>`;
+        });
     });
 }
 
