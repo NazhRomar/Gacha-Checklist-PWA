@@ -548,6 +548,91 @@ body {
     box-shadow: 0 0 10px color-mix(in srgb, var(--game-accent) 60%, transparent);
 }
 
+.gw-star {
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+    background: currentColor;
+    clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
+}
+
+.gw-x {
+    position: relative;
+    width: 10px;
+    height: 10px;
+    flex-shrink: 0;
+}
+
+.gw-x::before,
+.gw-x::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 2px;
+    background: currentColor;
+    border-radius: 1px;
+    transform-origin: center;
+}
+
+.gw-x::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.gw-x::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* Exactly enough undecided days left to still hit 5/7 - every one now matters. */
+.gw-pip-critical {
+    animation: gw-flash-critical 1s ease-in-out infinite;
+}
+
+@keyframes gw-flash-critical {
+    0%, 100% {
+        border-color: rgba(250, 204, 21, 0.35);
+        box-shadow: none;
+    }
+    50% {
+        border-color: #facc15;
+        color: #facc15;
+        box-shadow: 0 0 10px rgba(250, 204, 21, 0.7);
+    }
+}
+
+/* Not enough undecided days left - 5/7 is already out of reach this week. */
+.gw-pip-doomed {
+    border-style: dashed;
+    animation: gw-fade-doomed 1.8s ease-in-out infinite;
+}
+
+@keyframes gw-fade-doomed {
+    0%, 100% {
+        opacity: 1;
+        border-color: rgba(248, 113, 113, 0.3);
+    }
+    50% {
+        opacity: 0.4;
+        border-color: #f87171;
+    }
+}
+
+.gw-warn-text {
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.gw-warn-critical {
+    color: #facc15;
+}
+
+.gw-warn-doomed {
+    color: #f87171;
+}
+
 .gw-footer {
     display: flex;
     align-items: center;

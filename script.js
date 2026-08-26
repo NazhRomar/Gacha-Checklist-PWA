@@ -189,6 +189,24 @@ function renderWeeklyStreak() {
         && !!state.checked[`gi-d-${GI_COMMISSIONS_IDX}`]
         && !!state.checked[`gi-d-${GI_RESIN_IDX}`];
 
+    const completedCount = state.gwDays.filter(v => v === "done").length + (todayDoneLive ? 1 : 0);
+
+    // How many days (today included, if not already locked in) are still
+    // undecided between now and the week's end — i.e. still capable of
+    // swinging the 5/7 target either way.
+    let remainingUndecided = 0;
+    for (let i = todayIdx; i < 7; i++) {
+        if (i === todayIdx && todayDoneLive) continue;
+        if (state.gwDays[i] == null) remainingUndecided++;
+    }
+    const needed = 5 - completedCount;
+    // "critical": every remaining day must land as a win to still hit 5/7.
+    // "doomed": even a clean sweep of what's left can't reach 5/7 anymore.
+    const warnClass = needed <= 0 ? ""
+        : needed === remainingUndecided ? "gw-pip-critical"
+        : needed > remainingUndecided ? "gw-pip-doomed"
+        : "";
+
     const pips = Array.from({ length: 7 }, (_, i) => {
         const label = DAY_LABELS[i];
         const val = state.gwDays[i];
@@ -196,17 +214,21 @@ function renderWeeklyStreak() {
             return `<div class="gw-pip completed" title="${label}">✓</div>`;
         }
         if (i === todayIdx) {
-            return `<div class="gw-pip current" title="${label} (today)">◆</div>`;
+            return `<div class="gw-pip current ${warnClass}" title="${label} (today)"><span class="gw-star"></span></div>`;
         }
         if (val === "done") return `<div class="gw-pip completed" title="${label}">✓</div>`;
-        if (val === "missed") return `<div class="gw-pip missed" title="${label} (missed)">✕</div>`;
+        if (val === "missed") return `<div class="gw-pip missed" title="${label} (missed)"><span class="gw-x"></span></div>`;
         // Undecided: derive a display-only "missed" for past days so the row
         // still reads correctly even if a day was never explicitly resolved.
-        if (i < todayIdx) return `<div class="gw-pip missed" title="${label} (missed)">✕</div>`;
-        return `<div class="gw-pip" title="${label}"></div>`;
+        if (i < todayIdx) return `<div class="gw-pip missed" title="${label} (missed)"><span class="gw-x"></span></div>`;
+        return `<div class="gw-pip ${warnClass}" title="${label}"></div>`;
     }).join("");
 
-    const completedCount = state.gwDays.filter(v => v === "done").length + (todayDoneLive ? 1 : 0);
+    const warnText = warnClass === "gw-pip-critical"
+        ? `<div class="gw-warn-text gw-warn-critical">You must complete every remaining day to hit this week's goal.</div>`
+        : warnClass === "gw-pip-doomed"
+        ? `<div class="gw-warn-text gw-warn-doomed">You can no longer hit this week's goal.</div>`
+        : "";
 
     return `
     <div class="gw-widget">
@@ -215,6 +237,7 @@ function renderWeeklyStreak() {
             <span class="gw-count">${completedCount}/7</span>
         </div>
         <div class="gw-bar">${pips}</div>
+        ${warnText}
         <div class="gw-footer">
             <span>Reward Progress: <b>${state.gwPoints}/8</b></span>
             <span id="gw-reset-timer">--</span>
