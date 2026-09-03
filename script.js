@@ -286,6 +286,16 @@ const emptyWeek = () => [null, null, null, null, null, null, null];
 let gwEditing = false;
 let gwDraft = null;
 
+// Which section of the hamburger menu is showing - kept outside updateMenu()
+// so it survives the innerHTML rebuild that happens on every re-render.
+let menuTab = "display";
+
+function closeVisibilityMenu() {
+    const toggle = document.querySelector('[data-bs-toggle="dropdown"]');
+    const inst = toggle && bootstrap.Dropdown.getInstance(toggle);
+    if (inst) inst.hide();
+}
+
 function runWeeklyStreakCycleCheck() {
     let didReset = false;
     while (Date.now() >= state.gwCycleEnd) {
@@ -313,6 +323,7 @@ const GW_CYCLE_STATES = ["done", "missed", null];
 window.startWeeklyProgressEdit = () => {
     gwEditing = true;
     gwDraft = [...state.gwDays];
+    closeVisibilityMenu();
     buildDashboard();
 };
 
@@ -637,9 +648,20 @@ function getReset(type) {
     return r.getTime();
 }
 
-function updateMenu() {
-    let html = `<li class="dropdown-header">General</li>
-    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('monthly'); return false;">
+const MENU_TABS = [
+    { id: "display", label: "Display" },
+    { id: "games", label: "Games" },
+    { id: "items", label: "Items" },
+];
+
+window.setMenuTab = (tab) => {
+    menuTab = tab;
+    updateMenu();
+};
+
+function renderMenuDisplayTab() {
+    const syncCfg = loadSyncCfg();
+    let html = `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('monthly'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.hideMonthly ? "checked" : ""}> Hide Monthly Column
     </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('timers'); return false;">
@@ -647,10 +669,8 @@ function updateMenu() {
     </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('footer'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.hideFooter ? "checked" : ""}> Hide Footer
-    </a></li><hr class="dropdown-divider">`;
+    </a></li><hr class="dropdown-divider"><li class="dropdown-header">Sync</li>`;
 
-    const syncCfg = loadSyncCfg();
-    html += `<li class="dropdown-header">Sync</li>`;
     if (syncCfg.enabled && syncCfg.workerUrl && syncCfg.pin) {
         html += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="syncNow(); return false;">
             <span class="opt-item-override">⟳</span> Sync Now
@@ -666,14 +686,18 @@ function updateMenu() {
             <span class="opt-item-override">✎</span> Set Up Sync&hellip;
         </a></li>`;
     }
-    html += `<hr class="dropdown-divider">`;
+    return html;
+}
 
-    html += `<li class="dropdown-header">Games</li>`;
-    html += games.map(g => `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('game', '${g.id}'); return false;">
+function renderMenuGamesTab() {
+    return games.map(g => `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('game', '${g.id}'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${!state.hidden.includes(g.id) ? "checked" : ""}> ${g.name}
     </a></li>`).join("");
+}
 
-    let optionalItemsHtml = `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('weeklystreak'); return false;">
+function renderMenuItemsTab() {
+    let html = `<li class="dropdown-header">Weekly Streak</li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('weeklystreak'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}>
         <span class="opt-item-badge gi-theme">GI</span> Weekly Streak
     </a></li>` + (state.gwEnabled ? `
@@ -683,6 +707,8 @@ function updateMenu() {
     <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="overrideRewardProgress(); return false;">
         <span class="opt-item-override">✎</span> Set Reward Progress (${state.gwPoints}/8)
     </a></li>` : "");
+
+    let optionalItemsHtml = "";
     games.forEach(g => {
         g.daily.forEach((t, i) => {
             if (typeof t === 'object' && t.optional) {
@@ -699,8 +725,19 @@ function updateMenu() {
     if (optionalItemsHtml) {
         html += `<hr class="dropdown-divider"><li class="dropdown-header">Optional Items</li>` + optionalItemsHtml;
     }
+    return html;
+}
 
-    document.getElementById("visibility-menu").innerHTML = html;
+function updateMenu() {
+    const tabsHtml = `<li class="menu-tabs">` + MENU_TABS.map(t =>
+        `<a href="#" class="menu-tab ${menuTab === t.id ? "active" : ""}" onclick="setMenuTab('${t.id}'); return false;">${t.label}</a>`
+    ).join("") + `</li>`;
+
+    const body = menuTab === "games" ? renderMenuGamesTab()
+        : menuTab === "items" ? renderMenuItemsTab()
+        : renderMenuDisplayTab();
+
+    document.getElementById("visibility-menu").innerHTML = tabsHtml + body;
 }
 
 window.toggleConfig = (type, id) => {

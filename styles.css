@@ -60,7 +60,45 @@ body {
     padding: 10px !important;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
     min-width: 260px;
+    max-height: min(70vh, 520px);
+    overflow-y: auto;
     z-index: 1030;
+}
+
+.menu-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 2px 2px 10px;
+    position: sticky;
+    top: 0;
+    background: inherit;
+}
+
+.menu-tab {
+    flex: 1;
+    text-align: center;
+    padding: 7px 8px;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-decoration: none;
+    transition: all 0.15s ease;
+}
+
+.menu-tab:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.menu-tab.active {
+    color: #000;
+    background: #e4e4e7;
+    border-color: #e4e4e7;
 }
 
 .dropdown-header {
