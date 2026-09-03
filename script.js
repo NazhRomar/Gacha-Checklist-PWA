@@ -85,17 +85,11 @@ const DEFAULT_STATE = {
     // reference date the requirement was written against).
     gwCycleEnd: new Date("2026-11-02T04:00:00").getTime(),
     up: null,
+    upTs: 0,
     rs: null,
 };
 
-function loadState() {
-    let saved = {};
-    try {
-        saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
-    } catch (e) {
-        saved = {};
-    }
-    const merged = { ...DEFAULT_STATE, ...saved };
+function normalizeState(merged) {
     if (!Array.isArray(merged.gwDays) || merged.gwDays.length !== 7) {
         merged.gwDays = [...DEFAULT_STATE.gwDays];
     } else if (typeof merged.gwDays[0] === "boolean") {
@@ -105,7 +99,172 @@ function loadState() {
     return merged;
 }
 
+function loadState() {
+    let saved = {};
+    try {
+        saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    } catch (e) {
+        saved = {};
+    }
+    return normalizeState({ ...DEFAULT_STATE, ...saved });
+}
+
 let state = loadState();
+
+// --- Cross-device sync (optional, via a small user-hosted Cloudflare Worker) ---
+// The worker URL + PIN are device config, not app data, so they live in their
+// own localStorage key and never get pushed/pulled as part of `state` itself.
+const SYNC_CFG_KEY = "gacha_sync_cfg";
+
+function loadSyncCfg() {
+    try {
+        return JSON.parse(localStorage.getItem(SYNC_CFG_KEY)) || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveSyncCfg(cfg) {
+    localStorage.setItem(SYNC_CFG_KEY, JSON.stringify(cfg));
+}
+
+function syncEndpoint(cfg) {
+    return `${cfg.workerUrl}/state/${encodeURIComponent(cfg.pin)}`;
+}
+
+let syncBusy = false;
+let syncPushTimer = null;
+
+function setSyncStatus(html) {
+    const el = document.getElementById("sync-status");
+    if (el) el.innerHTML = html;
+}
+
+function renderSyncStatus() {
+    const cfg = loadSyncCfg();
+    if (!cfg.enabled || !cfg.workerUrl || !cfg.pin) {
+        setSyncStatus(`<span class="sw-dot sw-off"></span>Sync off`);
+        return;
+    }
+    if (syncBusy) {
+        setSyncStatus(`<span class="sw-dot sw-pending"></span>Syncing&hellip;`);
+        return;
+    }
+    if (cfg.lastError) {
+        setSyncStatus(`<span class="sw-dot sw-off"></span>Sync error &mdash; ${cfg.lastError}`);
+        return;
+    }
+    if (cfg.lastSyncedAt) {
+        const secsAgo = Math.max(0, Math.round((Date.now() - cfg.lastSyncedAt) / 1000));
+        const when = secsAgo < 5 ? "just now" : secsAgo < 60 ? `${secsAgo}s ago` : `${Math.round(secsAgo / 60)}m ago`;
+        setSyncStatus(`<span class="sw-dot sw-active"></span>Synced ${when}`);
+        return;
+    }
+    setSyncStatus(`<span class="sw-dot sw-pending"></span>Sync on &mdash; waiting for first sync`);
+}
+
+async function syncPush() {
+    const cfg = loadSyncCfg();
+    if (!cfg.enabled || !cfg.workerUrl || !cfg.pin) return;
+    syncBusy = true;
+    renderSyncStatus();
+    try {
+        const res = await fetch(syncEndpoint(cfg), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(state),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        cfg.lastSyncedAt = Date.now();
+        cfg.lastPushedTs = state.upTs || 0;
+        cfg.lastError = null;
+    } catch (e) {
+        cfg.lastError = "couldn't reach worker";
+    }
+    saveSyncCfg(cfg);
+    syncBusy = false;
+    renderSyncStatus();
+}
+
+function scheduleSyncPush() {
+    const cfg = loadSyncCfg();
+    if (!cfg.enabled || !cfg.workerUrl || !cfg.pin) return;
+    clearTimeout(syncPushTimer);
+    syncPushTimer = setTimeout(syncPush, 2000);
+}
+
+async function syncPull() {
+    const cfg = loadSyncCfg();
+    if (!cfg.enabled || !cfg.workerUrl || !cfg.pin) return;
+    syncBusy = true;
+    renderSyncStatus();
+    try {
+        const res = await fetch(syncEndpoint(cfg));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const remote = await res.json();
+        if (remote && (remote.upTs || 0) > (state.upTs || 0)) {
+            state = normalizeState({ ...DEFAULT_STATE, ...remote });
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            buildDashboard();
+        }
+        cfg.lastSyncedAt = Date.now();
+        cfg.lastError = null;
+    } catch (e) {
+        cfg.lastError = "couldn't reach worker";
+    }
+    saveSyncCfg(cfg);
+    syncBusy = false;
+    renderSyncStatus();
+}
+
+window.setupSync = () => {
+    const cfg = loadSyncCfg();
+    const url = prompt("Cloudflare Worker URL (see sync-worker/README.md to deploy one):", cfg.workerUrl || "");
+    if (url === null) return;
+    const pin = prompt("Sync PIN - use the same one on every device (6+ characters):", cfg.pin || "");
+    if (pin === null) return;
+    saveSyncCfg({ workerUrl: url.trim().replace(/\/+$/, ""), pin: pin.trim(), enabled: true, lastSyncedAt: null, lastError: null });
+    updateMenu();
+    syncTick();
+};
+
+window.disableSync = () => {
+    const cfg = loadSyncCfg();
+    cfg.enabled = false;
+    saveSyncCfg(cfg);
+    updateMenu();
+    renderSyncStatus();
+};
+
+window.syncNow = () => {
+    syncTick();
+};
+
+// A push can fail (device was offline, worker unreachable) and nothing
+// automatically retries it until the next edit reschedules one. Piggyback a
+// retry on every pull tick instead, but only when there's actually something
+// unpushed - otherwise every idle tick would burn into the free tier's daily
+// write quota for no reason.
+async function syncTick() {
+    await syncPull();
+    const cfg = loadSyncCfg();
+    if (!cfg.enabled || !cfg.workerUrl || !cfg.pin) return;
+    if (cfg.lastError || (state.upTs || 0) > (cfg.lastPushedTs || 0)) {
+        await syncPush();
+    }
+}
+
+function startSyncLoop() {
+    renderSyncStatus();
+    syncTick();
+    setInterval(() => {
+        if (document.visibilityState === "visible") syncTick();
+    }, 20000);
+    document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") syncTick();
+    });
+    setInterval(renderSyncStatus, 5000);
+}
 
 const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly" };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -141,10 +300,12 @@ function runWeeklyStreakCycleCheck() {
 // --- Save & Global Functions ---
 window.save = (isReset = false) => {
     state.up = new Date().toLocaleString();
+    state.upTs = Date.now();
     if (isReset) state.rs = new Date().toLocaleString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     document.getElementById("last-updated").innerText = state.up || "-";
     document.getElementById("last-reset").innerText = state.rs || "-";
+    scheduleSyncPush();
 };
 
 const GW_CYCLE_STATES = ["done", "missed", null];
@@ -488,6 +649,25 @@ function updateMenu() {
         <input type="checkbox" class="form-check-input mt-0" ${state.hideFooter ? "checked" : ""}> Hide Footer
     </a></li><hr class="dropdown-divider">`;
 
+    const syncCfg = loadSyncCfg();
+    html += `<li class="dropdown-header">Sync</li>`;
+    if (syncCfg.enabled && syncCfg.workerUrl && syncCfg.pin) {
+        html += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="syncNow(); return false;">
+            <span class="opt-item-override">⟳</span> Sync Now
+        </a></li>
+        <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setupSync(); return false;">
+            <span class="opt-item-override">✎</span> Sync Settings&hellip;
+        </a></li>
+        <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="disableSync(); return false;">
+            <span class="opt-item-override">✕</span> Turn Off Sync
+        </a></li>`;
+    } else {
+        html += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setupSync(); return false;">
+            <span class="opt-item-override">✎</span> Set Up Sync&hellip;
+        </a></li>`;
+    }
+    html += `<hr class="dropdown-divider">`;
+
     html += `<li class="dropdown-header">Games</li>`;
     html += games.map(g => `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('game', '${g.id}'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${!state.hidden.includes(g.id) ? "checked" : ""}> ${g.name}
@@ -545,8 +725,18 @@ window.toggleConfig = (type, id) => {
 
 // --- Init ---
 
-// 1. Daily Reset Check
-if (state.lastD < getReset("d") - 86400000) {
+async function initApp() {
+    // Adopt any synced state before running the local reset checks below -
+    // otherwise a freshly-installed (or just-cleared) device's "just booted"
+    // timestamp would beat out real progress synced from another device,
+    // since the reset checks themselves call save() and bump upTs to now.
+    const cfg = loadSyncCfg();
+    if (cfg.enabled && cfg.workerUrl && cfg.pin) {
+        await syncPull();
+    }
+
+    // 1. Daily Reset Check
+    if (state.lastD < getReset("d") - 86400000) {
     if (state.gwEnabled) {
         const endedDayIdx = mondayIndex(new Date(getReset("d") - 86400000));
         // Don't clobber a day already explicitly resolved (e.g. via manual edit).
@@ -609,3 +799,7 @@ runWeeklyStreakCycleCheck();
 
 buildDashboard();
 setInterval(updateLiveText, 1000);
+startSyncLoop();
+}
+
+initApp();
