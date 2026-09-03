@@ -17,6 +17,14 @@ export const games = [
             { label: "Special Recruitment Project", optional: true },
         ],
         monthly: ["Stardust Exchange"],
+        // Spiral Abyss and Imaginarium Theater alternate month to month (only
+        // one is actually playable in a given patch), each on its own reset
+        // cadence - see the dedicated reset checks in script.js. Both show
+        // here regardless of which is currently live; use whichever applies.
+        abyss: [
+            { label: "Spiral Abyss", optional: true },
+            { label: "Imaginarium Theater", optional: true },
+        ],
     },
     {
         id: "hi3",

@@ -60,7 +60,7 @@ if (navigator.storage && navigator.storage.persist) {
 
 const STORAGE_KEY = "gacha_pwa_v1";
 
-const TASK_LIST_TYPES = [["daily", "d"], ["weekly", "w"], ["monthly", "m"]];
+const TASK_LIST_TYPES = [["daily", "d"], ["weekly", "w"], ["monthly", "m"], ["abyss", "a"]];
 
 // Walks every task across every game/list, calling cb(game, type, index, task)
 // for the ones flagged `optional: true` in data.js.
@@ -99,6 +99,8 @@ const DEFAULT_STATE = {
     lastD: 0,
     lastW: 0,
     lastM: 0,
+    lastAbyss: 0,
+    lastTheater: 0,
     gwEnabled: true,
     gwDays: [null, null, null, null, null, null, null],
     gwPoints: 0,
@@ -288,7 +290,7 @@ function startSyncLoop() {
     setInterval(renderSyncStatus, 5000);
 }
 
-const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly" };
+const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly", a: "Abyss" };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const isMobile = () => window.innerWidth < 768;
 
@@ -298,6 +300,8 @@ const CYCLE_WEEKS = 12;
 const GI = games.find(g => g.id === "gi");
 const GI_COMMISSIONS_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Commissions");
 const GI_RESIN_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Resin");
+const GI_ABYSS_IDX = GI.abyss.findIndex(t => (typeof t === "string" ? t : t.label) === "Spiral Abyss");
+const GI_THEATER_IDX = GI.abyss.findIndex(t => (typeof t === "string" ? t : t.label) === "Imaginarium Theater");
 
 const mondayIndex = (date) => (date.getDay() + 6) % 7;
 const emptyWeek = () => [null, null, null, null, null, null, null];
@@ -385,7 +389,7 @@ function applyGlobalVisibility() {
 
 function taskCounts(g) {
     let done = 0, total = 0;
-    const lists = [["d", g.daily], ["w", g.weekly], ...(state.hideMonthly ? [] : [["m", g.monthly]])];
+    const lists = [["d", g.daily], ["w", g.weekly], ...(state.hideMonthly ? [] : [["m", g.monthly]]), ...(g.abyss ? [["a", g.abyss]] : [])];
     lists.forEach(([type, list]) => {
         list.forEach((t, i) => {
             const id = `${g.id}-${type}-${i}`;
@@ -533,7 +537,12 @@ function buildDashboard() {
             const isCollapsed = state.collapsed.includes(g.id);
             const isMobileActive = g.id === state.activeGame;
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-            const types = ["d", "w", ...(state.hideMonthly ? [] : ["m"])];
+            // Abyss/Theater is Genshin-only, so the tab set differs per game -
+            // fall back to Daily if the globally-shared activeType doesn't
+            // apply to whichever game is rendering (e.g. it was left on
+            // "Abyss" and the user switched to a game without that tab).
+            const types = ["d", "w", ...(state.hideMonthly ? [] : ["m"]), ...(g.abyss ? ["a"] : [])];
+            const activeType = types.includes(state.activeType) ? state.activeType : "d";
             return `
             <div id="section-${g.id}" class="game-section ${g.style} ${!state.hidden.includes(g.id) ? "visible" : ""} ${isCollapsed ? "collapsed" : ""} ${isMobileActive ? "mobile-active" : ""}">
                 <div class="game-header" onclick="toggleCollapse('${g.id}')">
@@ -545,12 +554,13 @@ function buildDashboard() {
                     </div>
                 </div>
                 <div class="type-tabs">
-                    ${types.map(type => `<button type="button" class="type-tab ${state.activeType === type ? "active" : ""}" onclick="setActiveType('${type}')">${TYPE_LABELS[type]}</button>`).join("")}
+                    ${types.map(type => `<button type="button" class="type-tab ${activeType === type ? "active" : ""}" onclick="setActiveType('${type}')">${TYPE_LABELS[type]}</button>`).join("")}
                 </div>
                 <div class="task-grid">
-                    <div class="task-column ${state.activeType === "d" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
-                    <div class="task-column ${state.activeType === "w" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
-                    ${!state.hideMonthly ? `<div class="task-column ${state.activeType === "m" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
+                    <div class="task-column ${activeType === "d" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
+                    <div class="task-column ${activeType === "w" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
+                    ${!state.hideMonthly ? `<div class="task-column ${activeType === "m" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
+                    ${g.abyss ? `<div class="task-column ${activeType === "a" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Abyss</div>${g.abyss.map((t, i) => drawItem(g.id, "a", i, t)).join("")}</div>` : ""}
                 </div>
                 ${g.id === "gi" ? renderWeeklyStreak() : ""}
             </div>`;
@@ -668,6 +678,22 @@ function getReset(type) {
     }
     else { r.setDate(1); if (now >= r) r.setMonth(r.getMonth() + 1); }
     return r.getTime();
+}
+
+// Spiral Abyss flips its lineup/blessings twice a month - the 1st and the
+// 16th, both at 4am - unlike the other cadences above, which are all "next
+// boundary minus a fixed interval". A half-month has no fixed length, so
+// this finds the most recent boundary directly instead.
+function currentAbyssPeriodStart(now = new Date()) {
+    const boundaries = [];
+    for (const monthOffset of [-1, 0]) {
+        boundaries.push(
+            new Date(now.getFullYear(), now.getMonth() + monthOffset, 1, 4, 0, 0, 0),
+            new Date(now.getFullYear(), now.getMonth() + monthOffset, 16, 4, 0, 0, 0),
+        );
+    }
+    const past = boundaries.filter(b => b.getTime() <= now.getTime());
+    return Math.max(...past.map(b => b.getTime()));
 }
 
 const MENU_TABS = [
@@ -847,6 +873,23 @@ if (state.lastM < currentMonthlyReset.getTime()) {
         }
     });
     state.lastM = Date.now();
+    window.save(true);
+}
+
+// 4. Spiral Abyss Reset Check (1st & 16th, 4am - see currentAbyssPeriodStart)
+const abyssPeriodStart = currentAbyssPeriodStart();
+if (state.lastAbyss < abyssPeriodStart) {
+    delete state.checked[`gi-a-${GI_ABYSS_IDX}`];
+    state.lastAbyss = abyssPeriodStart;
+    window.save(true);
+}
+
+// 5. Imaginarium Theater Reset Check - flips monthly on the 1st, same
+// boundary as the Monthly check above, since Theater and Abyss alternate
+// month to month but both reset on a month-aligned cadence.
+if (state.lastTheater < currentMonthlyReset.getTime()) {
+    delete state.checked[`gi-a-${GI_THEATER_IDX}`];
+    state.lastTheater = currentMonthlyReset.getTime();
     window.save(true);
 }
 
