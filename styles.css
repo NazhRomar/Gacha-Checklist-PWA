@@ -906,12 +906,21 @@ footer .container {
        stay in place no matter how long the list is. */
     html, body {
         height: 100dvh;
+        max-height: 100dvh;
+        /* The base rule below sets min-height: 100vh for the non-app-shell
+           layout. On mobile, 100vh is often taller than the real visible
+           viewport (100dvh), so without this override the larger min-height
+           wins, body renders taller than the screen, and overflow:hidden
+           clips the footer off below the fold instead of just hiding
+           overflow within it. */
+        min-height: 100dvh;
         overflow: hidden;
     }
 
     .main-content {
         flex: 1;
         min-height: 0;
+        max-height: 100%;
         overflow: hidden;
         display: flex;
         flex-direction: column;
