@@ -60,13 +60,35 @@ if (navigator.storage && navigator.storage.persist) {
 
 const STORAGE_KEY = "gacha_pwa_v1";
 
+const TASK_LIST_TYPES = [["daily", "d"], ["weekly", "w"], ["monthly", "m"]];
+
+// Walks every task across every game/list, calling cb(game, type, index, task)
+// for the ones flagged `optional: true` in data.js.
+function forEachOptionalTask(cb) {
+    games.forEach(g => {
+        TASK_LIST_TYPES.forEach(([key, type]) => {
+            (g[key] || []).forEach((t, i) => {
+                if (typeof t === "object" && t.optional) cb(g, type, i, t);
+            });
+        });
+    });
+}
+
+function defaultHiddenIds() {
+    const ids = [];
+    forEachOptionalTask((g, type, i) => ids.push(`${g.id}-${type}-${i}`));
+    return ids;
+}
+
 // Defaults for every field state can hold. Loading merges saved data OVER
 // this, field by field, so a save from an older version of the app (missing
 // newer fields) still ends up with valid defaults instead of `undefined` -
 // no manual "if (!state.x) ..." patch needed per field going forward.
 const DEFAULT_STATE = {
     checked: {},
-    hidden: [],
+    // Optional items are opt-in: a brand-new install starts with them all
+    // hidden so the checklist isn't cluttered by default.
+    hidden: defaultHiddenIds(),
     menus: [],
     collapsed: [],
     hideMonthly: false,
@@ -709,17 +731,13 @@ function renderMenuItemsTab() {
     </a></li>` : "");
 
     let optionalItemsHtml = "";
-    games.forEach(g => {
-        g.daily.forEach((t, i) => {
-            if (typeof t === 'object' && t.optional) {
-                const taskId = `${g.id}-d-${i}`;
-                const isVisible = !state.hidden.includes(taskId);
-                optionalItemsHtml += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('game', '${taskId}'); return false;">
-                    <input type="checkbox" class="form-check-input mt-0" ${isVisible ? "checked" : ""}>
-                    <span class="opt-item-badge ${g.style}">${g.badge}</span> ${t.label}
-                </a></li>`;
-            }
-        });
+    forEachOptionalTask((g, type, i, t) => {
+        const taskId = `${g.id}-${type}-${i}`;
+        const isVisible = !state.hidden.includes(taskId);
+        optionalItemsHtml += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('game', '${taskId}'); return false;">
+            <input type="checkbox" class="form-check-input mt-0" ${isVisible ? "checked" : ""}>
+            <span class="opt-item-badge ${g.style}">${g.badge}</span> ${t.label}
+        </a></li>`;
     });
 
     if (optionalItemsHtml) {

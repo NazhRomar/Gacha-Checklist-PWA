@@ -391,9 +391,9 @@ body {
     box-shadow: none;
 }
 
-/* --- Daily/Weekly/Monthly segmented tabs (mobile) --- */
+/* --- Daily/Weekly/Monthly segmented tabs --- */
 .type-tabs {
-    display: none;
+    display: flex;
     gap: 6px;
     padding: 10px 16px;
     border-bottom: 1px solid var(--border-color);
@@ -426,26 +426,21 @@ body {
 }
 
 .task-column {
+    display: none;
     flex: 1;
     min-width: 300px;
     padding: 22px 28px;
-    border-right: 1px solid var(--border-color);
 }
 
-.task-column:last-child {
-    border-right: none;
+.task-column.type-active {
+    display: block;
 }
 
+/* The type-tabs above already say Daily/Weekly/Monthly, so repeating it
+   as a column heading is redundant now that only one column shows at a
+   time (both on mobile and desktop). */
 .column-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.7rem;
-    font-weight: 800;
-    color: var(--text-secondary);
-    letter-spacing: 2px;
-    margin-bottom: 14px;
-    text-transform: uppercase;
+    display: none;
 }
 
 .column-dot {
@@ -888,17 +883,6 @@ footer .container {
     }
 }
 
-@media (max-width: 992px) {
-    .task-grid {
-        flex-direction: column;
-    }
-
-    .task-column {
-        border-right: none;
-        border-bottom: 1px solid var(--border-color);
-    }
-}
-
 /* Below md: one game + one task-type visible at a time, driven by tabs */
 @media (max-width: 767.98px) {
     /* App-shell layout: header rows are fixed height, only the
@@ -949,7 +933,6 @@ footer .container {
     }
 
     .type-tabs {
-        display: flex;
         flex-shrink: 0;
     }
 
@@ -959,13 +942,7 @@ footer .container {
         min-height: 0;
     }
 
-    .task-column {
-        display: none;
-        border-bottom: none;
-    }
-
     .task-column.type-active {
-        display: block;
         flex: 1;
         min-height: 0;
         overflow-y: auto;
@@ -974,11 +951,6 @@ footer .container {
 
     .gw-widget {
         flex-shrink: 0;
-    }
-
-    /* Type is already shown by the tab above; no need to repeat it here */
-    .column-title {
-        display: none;
     }
 }
 
