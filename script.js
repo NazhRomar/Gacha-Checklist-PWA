@@ -306,6 +306,18 @@ const GI_THEATER_IDX = GI.abyss.findIndex(t => (typeof t === "string" ? t : t.la
 const mondayIndex = (date) => (date.getDay() + 6) % 7;
 const emptyWeek = () => [null, null, null, null, null, null, null];
 
+// The daily checklist (and its reset) is anchored to 4am, not midnight - see
+// getReset("d"). Between midnight and 4am, the calendar date has already
+// advanced but the game day (and its commissions/resin checkboxes) hasn't
+// reset yet, so "today" for weekly-streak purposes must use the same 4am
+// boundary - otherwise the pip for the new calendar day briefly inherits
+// yesterday's already-checked commissions/resin as a false "done".
+function gameDay(date = new Date()) {
+    const d = new Date(date);
+    if (d.getHours() < 4) d.setDate(d.getDate() - 1);
+    return d;
+}
+
 // Transient (not persisted) weekly-progress edit session, entered from the
 // hamburger menu. A draft copy is edited in place and only written back to
 // `state` on Save; Cancel just throws it away.
@@ -425,7 +437,7 @@ function renderWeeklyStreak() {
 
     if (gwEditing) return renderWeeklyStreakEditor();
 
-    const todayIdx = mondayIndex(new Date());
+    const todayIdx = mondayIndex(gameDay());
     // Today's pip completes live as soon as both tasks are checked, without
     // waiting for the next daily reset to permanently commit it into gwDays.
     const todayDoneLive = state.gwDays[todayIdx] !== "done"
