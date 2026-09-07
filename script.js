@@ -95,14 +95,13 @@ const DEFAULT_STATE = {
     hideTimers: false,
     activeGame: null,
     activeType: "d",
-    activeAbyssIdx: null,
     appTab: "checklist",
     lastD: 0,
     lastW: 0,
     lastM: 0,
     lastAbyss: 0,
     lastTheater: 0,
-    abyssEnabled: true,
+    challengeEnabled: true,
     gwEnabled: true,
     gwDays: [null, null, null, null, null, null, null],
     gwPoints: 0,
@@ -489,7 +488,7 @@ window.setAppTab = (tab) => {
     if (tab === "banners") renderBannersView();
 };
 
-const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly", a: "Abyss" };
+const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly", a: "Challenge" };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const WEEK_MS = 604800000;
@@ -508,37 +507,63 @@ const GI_ABYSS_API_NAMES = {
     "Imaginarium Theater": "Imaginarium Theater",
 };
 
-window.setActiveAbyssIdx = (idx) => {
-    state.activeAbyssIdx = idx;
-    window.save();
-    buildDashboard();
-};
+// Games with a live-service "Challenge" tab. GI's two challenges (Spiral
+// Abyss, Imaginarium Theater) are fixed, perennial mode names, so they're
+// real checklist items in data.js with their own checked/hidden state.
+// HSR and ZZZ's endgame challenges rotate their specific name every cycle
+// (e.g. "Celestial Lupine" this cycle, something else next), so there's no
+// stable label to hardcode - those render read-only, straight from
+// whatever the live calendar API currently says, same as Banners.
+const CHALLENGE_GAMES = ["gi", "hsr", "zzz"];
 
-// Spiral Abyss and Imaginarium Theater are both optional (hidden by
-// default) and, per the live calendar data, don't necessarily alternate
-// exclusively - either or both can be live at once. Rather than stack
-// both as a flat list, this shows a small tab switcher (only when both are
-// enabled) plus a real live/upcoming status line for whichever is selected.
-function renderAbyssColumn(g) {
-    const visibleIdxs = g.abyss.map((_, i) => i).filter(i => !state.hidden.includes(`${g.id}-a-${i}`));
-    if (visibleIdxs.length === 0) return "";
+function gameHasChallengeTab(g) {
+    return CHALLENGE_GAMES.includes(g.id);
+}
 
-    if (state.activeAbyssIdx == null || !visibleIdxs.includes(state.activeAbyssIdx)) {
-        state.activeAbyssIdx = visibleIdxs[0];
+function challengePill(status) {
+    if (!status) return "";
+    return `<span class="challenge-pill challenge-pill-${status.state}">${status.text}</span>`;
+}
+
+function renderChallengeRow(label, status, checkId) {
+    const pill = challengePill(status);
+    if (!checkId) {
+        return `<div class="checklist-wrapper">
+            <div class="checklist-main" style="cursor: default;">
+                <span class="task-label">${label}</span>
+            </div>
+            ${pill}
+        </div>`;
     }
-    const idx = state.activeAbyssIdx;
+    const checked = !!state.checked[checkId];
+    return `<div class="checklist-wrapper">
+        <div class="checklist-main" onclick="toggleTask('${checkId}', false, 0)">
+            <input type="checkbox" class="form-check-input" ${checked ? "checked" : ""} onclick="event.stopPropagation(); toggleTask('${checkId}', false, 0)">
+            <span class="task-label ${checked ? "strikethrough" : ""}">${label}</span>
+        </div>
+        ${pill}
+    </div>`;
+}
 
-    const tabsHtml = visibleIdxs.length > 1
-        ? `<div class="abyss-tabs">` + visibleIdxs.map(i => `
-            <button type="button" class="abyss-tab ${idx === i ? "active" : ""}" onclick="setActiveAbyssIdx(${i})">${g.abyss[i].label}</button>
-        `).join("") + `</div>`
-        : "";
+function renderChallengeColumn(g) {
+    if (g.id === "gi") {
+        const visibleIdxs = g.abyss.map((_, i) => i).filter(i => !state.hidden.includes(`${g.id}-a-${i}`));
+        if (visibleIdxs.length === 0) return "";
+        return visibleIdxs.map(i => {
+            const t = g.abyss[i];
+            const apiName = GI_ABYSS_API_NAMES[t.label];
+            const status = apiName ? getChallengeStatus(g.id, apiName) : null;
+            return renderChallengeRow(t.label, status, `${g.id}-a-${i}`);
+        }).join("");
+    }
 
-    const apiName = GI_ABYSS_API_NAMES[g.abyss[idx].label];
-    const status = apiName ? getChallengeStatus(g.id, apiName) : null;
-    const statusHtml = status ? `<div class="abyss-status abyss-status-${status.state}">${status.text}</div>` : "";
-
-    return tabsHtml + statusHtml + drawItem(g.id, "a", idx, g.abyss[idx]);
+    // HSR/ZZZ: read-only, straight from whatever's currently live.
+    const entry = loadBannerCache()[g.id];
+    const challenges = (entry && entry.challenges) || [];
+    if (challenges.length === 0) {
+        return `<div class="banner-empty">No active challenges right now.</div>`;
+    }
+    return challenges.map(c => renderChallengeRow(c.name, getChallengeStatus(g.id, c.name), null)).join("");
 }
 
 // ZZZ's standalone "Login" task and the "Login" entry inside Errands' sub-
@@ -667,7 +692,7 @@ function applyGlobalVisibility() {
 
 function taskCounts(g) {
     let done = 0, total = 0;
-    const lists = [["d", g.daily], ["w", g.weekly], ...(state.hideMonthly ? [] : [["m", g.monthly]]), ...(g.abyss && state.abyssEnabled ? [["a", g.abyss]] : [])];
+    const lists = [["d", g.daily], ["w", g.weekly], ...(state.hideMonthly ? [] : [["m", g.monthly]]), ...(g.abyss && state.challengeEnabled ? [["a", g.abyss]] : [])];
     lists.forEach(([type, list]) => {
         list.forEach((t, i) => {
             const id = `${g.id}-${type}-${i}`;
@@ -815,11 +840,12 @@ function buildDashboard() {
             const { done, total } = taskCounts(g);
             const isCollapsed = state.collapsed.includes(g.id);
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-            // Abyss/Theater is Genshin-only, so the tab set differs per game -
-            // fall back to Daily if the globally-shared activeType doesn't
-            // apply to whichever game is rendering (e.g. it was left on
-            // "Abyss" and the user switched to a game without that tab).
-            const types = ["d", "w", ...(state.hideMonthly ? [] : ["m"]), ...(g.abyss && state.abyssEnabled ? ["a"] : [])];
+            // The Challenge tab only exists for games with live-service
+            // content, so the tab set differs per game - fall back to Daily
+            // if the globally-shared activeType doesn't apply to whichever
+            // game is rendering (e.g. it was left on "Challenge" and the
+            // user switched to HI3, which has no such tab).
+            const types = ["d", "w", ...(state.hideMonthly ? [] : ["m"]), ...(gameHasChallengeTab(g) && state.challengeEnabled ? ["a"] : [])];
             const activeType = types.includes(state.activeType) ? state.activeType : "d";
             const isActiveGame = g.id === state.activeGame;
             return `
@@ -839,7 +865,7 @@ function buildDashboard() {
                     <div class="task-column ${activeType === "d" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
                     <div class="task-column ${activeType === "w" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
                     ${!state.hideMonthly ? `<div class="task-column ${activeType === "m" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
-                    ${g.abyss && state.abyssEnabled ? `<div class="task-column ${activeType === "a" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Abyss</div>${renderAbyssColumn(g)}</div>` : ""}
+                    ${gameHasChallengeTab(g) && state.challengeEnabled ? `<div class="task-column ${activeType === "a" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Challenge</div>${renderChallengeColumn(g)}</div>` : ""}
                 </div>
                 ${g.id === "gi" ? renderWeeklyStreak() : ""}
             </div>`;
@@ -1045,8 +1071,8 @@ function renderMenuItemsTab() {
         + (state.gwEnabled ? settingsActionRow("Edit Weekly Progress", "startWeeklyProgressEdit()", true)
             + settingsActionRow(`Set Reward Progress (${state.gwPoints}/8)`, "overrideRewardProgress()", true) : "");
 
-    html += `<div class="settings-section-title">Abyss</div>`
-        + settingsToggleRow("Abyss Tab", state.abyssEnabled, "toggleConfig('abyss')", { style: "gi-theme", text: "GI" });
+    html += `<div class="settings-section-title">Challenge</div>`
+        + settingsToggleRow("Challenge Tab", state.challengeEnabled, "toggleConfig('challenge')");
 
     let optionalItemsHtml = "";
     forEachOptionalTask((g, type, i, t) => {
@@ -1080,9 +1106,9 @@ window.toggleConfig = (type, id) => {
         state.hideTimers = !state.hideTimers;
     } else if (type === 'weeklystreak') {
         state.gwEnabled = !state.gwEnabled;
-    } else if (type === 'abyss') {
-        state.abyssEnabled = !state.abyssEnabled;
-        if (!state.abyssEnabled && state.activeType === "a") state.activeType = "d";
+    } else if (type === 'challenge') {
+        state.challengeEnabled = !state.challengeEnabled;
+        if (!state.challengeEnabled && state.activeType === "a") state.activeType = "d";
     } else if (type === 'game') {
         if (state.hidden.includes(id)) {
             state.hidden = state.hidden.filter(h => h !== id);
@@ -1187,12 +1213,19 @@ runWeeklyStreakCycleCheck();
 
 buildDashboard();
 if (state.appTab === "banners") renderBannersView();
-// Prime GI's live calendar data (banners + challenge dates) in the
-// background, so the Abyss tab's status line is accurate as soon as it's
-// looked at instead of waiting on a fetch mid-render.
-fetchBanners("gi").then(() => {
-    if (state.activeGame === "gi") buildDashboard();
-});
+// Prime every Challenge-tab game's live calendar data (banners + challenge
+// dates) in the background, so the tab's status line/rows are accurate as
+// soon as they're looked at instead of waiting on a fetch mid-render.
+// Sequential, not Promise.all - fetchBanners() does a read-modify-write on
+// the same shared localStorage cache, and running them concurrently would
+// race (each reads the cache before the others have written back, so all
+// but the last write silently get lost).
+(async () => {
+    for (const gid of CHALLENGE_GAMES) {
+        await fetchBanners(gid);
+        if (state.activeGame === gid) buildDashboard();
+    }
+})();
 setInterval(updateLiveText, 1000);
 startSyncLoop();
 }
