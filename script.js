@@ -576,6 +576,26 @@ function computeCalendarWindow(events) {
     return { start: start.getTime(), end: end.getTime() };
 }
 
+// Events that end on the same calendar day tend to pile up (a season's
+// worth of side content all wrapping up together) and each gets its own
+// near-identical bar - collapse each same-end-day group into a single row
+// spanning from the earliest start to that shared end.
+function mergeCalendarEventsByEndDay(events) {
+    const groups = new Map();
+    events.forEach(e => {
+        const endDay = new Date(e.endTime);
+        endDay.setHours(0, 0, 0, 0);
+        const key = endDay.getTime();
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(e);
+    });
+    return [...groups.values()].map(group => group.length === 1 ? group[0] : {
+        name: group.map(g => g.name).join(" / "),
+        startTime: Math.min(...group.map(g => g.startTime)),
+        endTime: Math.max(...group.map(g => g.endTime)),
+    });
+}
+
 // Every unique calendar day an event starts or ends on, in this window -
 // the ruler only marks days that actually matter instead of a generic
 // weekly grid, matching the in-game event calendar's look.
@@ -593,6 +613,21 @@ function calendarEventDays(events, windowStart, windowEnd) {
         });
     });
     return [...seen.values()].sort((a, b) => a.time - b.time);
+}
+
+// Adjacent event days can land close enough together that their tick
+// numbers touch and blur into one another - alternate the crowded ones
+// onto a lower baseline so every number stays on its own line.
+const CALENDAR_TICK_MIN_GAP_PCT = 4;
+
+function staggerCalendarTicks(days) {
+    let prevLeftPct = -Infinity;
+    let lower = false;
+    return days.map(d => {
+        lower = (d.leftPct - prevLeftPct) < CALENDAR_TICK_MIN_GAP_PCT ? !lower : false;
+        prevLeftPct = d.leftPct;
+        return { ...d, lower };
+    });
 }
 
 // Month labels + one tick per event start/end day, sharing the exact same
@@ -614,21 +649,27 @@ function renderCalendarRuler(windowStart, windowEnd, days) {
         cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
 
+    const ticks = staggerCalendarTicks(days);
+
     return `
-    <div class="calendar-ruler">
-        <div class="calendar-ruler-label"></div>
-        <div class="calendar-ruler-track">
-            ${months.map(m => `<div class="calendar-month" style="left: ${m.leftPct}%; width: ${m.widthPct}%">${m.label}</div>`).join("")}
-            ${days.map(d => `<div class="calendar-tick-mark" style="left: ${d.leftPct}%"><span class="calendar-tick-num">${d.label}</span></div>`).join("")}
-        </div>
+    <div class="calendar-ruler-track">
+        ${months.map(m => `<div class="calendar-month" style="left: ${m.leftPct}%; width: ${m.widthPct}%">${m.label}</div>`).join("")}
+        ${ticks.map(d => `<div class="calendar-tick-mark" style="left: ${d.leftPct}%"><span class="calendar-tick-num${d.lower ? " calendar-tick-num-lower" : ""}">${d.label}</span></div>`).join("")}
     </div>`;
 }
 
 // A dashed vertical line per event start/end day, spanning the full chart
 // height from the ruler down through every row - the "which tick on the
-// ruler is this bar's edge" line the reference design calls for.
-function renderCalendarLines(days) {
-    return `<div class="calendar-lines">${days.map(d => `<div class="calendar-line" style="left: ${d.leftPct}%"></div>`).join("")}</div>`;
+// ruler is this bar's edge" line the reference design calls for. The
+// "today" line uses the same treatment but bolder, so it doesn't get lost
+// among the day lines it sits alongside.
+function renderCalendarLines(days, windowStart, windowEnd) {
+    const span = windowEnd - windowStart;
+    const now = Date.now();
+    const todayLine = now >= windowStart && now <= windowEnd
+        ? `<div class="calendar-line calendar-line-today" style="left: ${((now - windowStart) / span) * 100}%"></div>`
+        : "";
+    return `<div class="calendar-lines">${days.map(d => `<div class="calendar-line" style="left: ${d.leftPct}%"></div>`).join("")}${todayLine}</div>`;
 }
 
 function renderCalendarRow(e, windowStart, windowEnd) {
@@ -638,15 +679,29 @@ function renderCalendarRow(e, windowStart, windowEnd) {
     const widthPct = Math.min(100 - leftPct, Math.max(2, rawWidthPct));
     const now = Date.now();
     const isLive = now >= e.startTime && now <= e.endTime;
+    // Anchored to the bar's own right edge and growing leftward (rather than
+    // rightward from a % position) so it never overflows past the track's
+    // right edge, however close to the end of the window the bar sits.
+    const endsIn = isLive ? `<span class="calendar-ends-in">Ends in: ${bannerCountdown(e.endTime)}</span>` : "";
 
     return `
     <div class="calendar-row">
         <div class="calendar-row-label" title="${e.name}">${e.name}</div>
         <div class="calendar-row-track">
-            <div class="calendar-bar ${isLive ? "calendar-bar-live" : "calendar-bar-upcoming"}" style="left: ${leftPct}%; width: ${widthPct}%"></div>
+            <div class="calendar-bar ${isLive ? "calendar-bar-live" : "calendar-bar-upcoming"}" style="left: ${leftPct}%; width: ${widthPct}%">${endsIn}</div>
         </div>
     </div>`;
 }
+
+// The sticky label column's width - must match the CSS rule of the same
+// name (.calendar-row-label / .calendar-ruler-spacer) since the lines
+// overlay's offset and the chart's total pixel width are both derived
+// from it here in JS.
+const CALENDAR_LABEL_WIDTH_PX = 170;
+// Fixed px-per-day (instead of stretching the timeline to fit the card)
+// so a long event list gets a wider, scrollable chart rather than
+// cramming every tick and bar into one narrow card's width.
+const CALENDAR_PX_PER_DAY = 24;
 
 function renderCalendarCard(target, result) {
     let body;
@@ -659,12 +714,20 @@ function renderCalendarCard(target, result) {
     } else {
         const { start, end } = computeCalendarWindow(result.events);
         const sorted = [...result.events].sort((a, b) => a.startTime - b.startTime);
-        const days = calendarEventDays(sorted, start, end);
+        const merged = mergeCalendarEventsByEndDay(sorted).sort((a, b) => a.startTime - b.startTime);
+        const days = calendarEventDays(merged, start, end);
+        const trackWidthPx = Math.round(((end - start) / 86400000) * CALENDAR_PX_PER_DAY);
+        const chartWidthPx = CALENDAR_LABEL_WIDTH_PX + trackWidthPx;
         body = `
-        <div class="calendar-chart">
-            ${renderCalendarLines(days)}
-            ${renderCalendarRuler(start, end, days)}
-            <div class="calendar-rows">${sorted.map(e => renderCalendarRow(e, start, end)).join("")}</div>
+        <div class="calendar-scroll">
+            <div class="calendar-chart" style="width: ${chartWidthPx}px; min-width: 100%;">
+                ${renderCalendarLines(days, start, end)}
+                <div class="calendar-ruler">
+                    <div class="calendar-ruler-spacer"></div>
+                    ${renderCalendarRuler(start, end, days)}
+                </div>
+                <div class="calendar-rows">${merged.map(e => renderCalendarRow(e, start, end)).join("")}</div>
+            </div>
         </div>`;
     }
 
@@ -675,6 +738,25 @@ function renderCalendarCard(target, result) {
         </div>
         <div class="banner-card-body">${body}</div>
     </div>`;
+}
+
+// The chart is wider than the card and starts scrolled to its left edge
+// (the start of the month) by default - jump to "today" so opening the
+// tab shows current/upcoming events instead of an empty stretch of past
+// dates the user has to scroll through first.
+function scrollCalendarToToday(el) {
+    const scroller = el.querySelector(".calendar-scroll");
+    const todayLine = el.querySelector(".calendar-line-today");
+    if (!scroller || !todayLine) return;
+    // todayLine's offsetParent is .calendar-lines, which itself already
+    // starts CALENDAR_LABEL_WIDTH_PX into the chart - so offsetLeft here
+    // is already relative to the visible timeline area, not the chart as
+    // a whole. The sticky label then covers the first
+    // CALENDAR_LABEL_WIDTH_PX of the *viewport*, so aim for some margin
+    // into the remaining visible timeline width, not all of clientWidth.
+    const visibleTimelineWidth = scroller.clientWidth - CALENDAR_LABEL_WIDTH_PX;
+    const target = todayLine.offsetLeft - visibleTimelineWidth * 0.3;
+    scroller.scrollLeft = Math.max(0, target);
 }
 
 async function renderCalendarView() {
@@ -689,10 +771,12 @@ async function renderCalendarView() {
 
     const cache = loadBannerCache();
     el.innerHTML = renderCalendarCard(target, cache[target.gid] || { loading: true });
+    scrollCalendarToToday(el);
 
     const result = await fetchBanners(target.gid);
     if (state.appTab === "calendar" && state.activeGame === target.gid) {
         el.innerHTML = renderCalendarCard(target, result);
+        scrollCalendarToToday(el);
     }
 }
 

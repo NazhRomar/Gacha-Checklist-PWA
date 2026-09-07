@@ -1083,7 +1083,17 @@ body {
     font-size: 0.85rem;
 }
 
-/* --- Calendar tab: month ruler + per-event timeline rows --- */
+/* --- Calendar tab: month ruler + per-event timeline rows ---
+   The chart is rendered at a fixed px-per-day width (see
+   CALENDAR_PX_PER_DAY in script.js) rather than stretched to fit the
+   card, so long event lists get a wider, horizontally-scrollable
+   timeline instead of cramming every tick and bar into one narrow
+   card. The row-label column stays pinned via position: sticky while
+   the rest scrolls underneath it. */
+.calendar-scroll {
+    overflow-x: auto;
+}
+
 .calendar-chart {
     position: relative;
 }
@@ -1092,7 +1102,7 @@ body {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 110px;
+    left: 170px;
     right: 0;
     pointer-events: none;
 }
@@ -1105,16 +1115,23 @@ body {
     border-left: 1.5px dashed rgba(255, 255, 255, 0.25);
 }
 
+.calendar-line-today {
+    border-left: 2px dashed rgba(255, 255, 255, 0.7);
+}
+
 .calendar-ruler {
-    display: grid;
-    grid-template-columns: 100px 1fr;
-    gap: 10px;
-    margin-bottom: 18px;
+    display: flex;
+}
+
+.calendar-ruler-spacer {
+    flex: 0 0 170px;
 }
 
 .calendar-ruler-track {
     position: relative;
+    flex: 1 1 auto;
     height: 40px;
+    margin-bottom: 26px;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -1149,39 +1166,61 @@ body {
     color: var(--text-tertiary);
 }
 
+.calendar-tick-num-lower {
+    bottom: -9px;
+}
+
 .calendar-rows {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 14px;
 }
 
 .calendar-row {
-    display: grid;
-    grid-template-columns: 100px 1fr;
-    align-items: end;
-    gap: 10px;
+    display: flex;
+    align-items: center;
 }
 
 .calendar-row-label {
+    position: sticky;
+    left: 0;
+    flex: 0 0 170px;
+    padding-right: 10px;
+    background: var(--card-bg);
+    border-right: 1px solid var(--border-color);
+    z-index: 2;
     font-size: 0.76rem;
     font-weight: 600;
     color: #efefef;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding-bottom: 5px;
 }
 
 .calendar-row-track {
     position: relative;
+    flex: 1 1 auto;
     height: 48px;
+    overflow: hidden;
 }
 
 .calendar-bar {
     position: absolute;
     bottom: 0;
-    height: 10px;
+    height: 18px;
     border-radius: 999px;
+}
+
+.calendar-ends-in {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    transform: translateY(-50%);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #08090a;
+    white-space: nowrap;
 }
 
 .calendar-bar-live {
@@ -1360,16 +1399,6 @@ footer {
 
     .settings-status {
         grid-template-columns: 1fr;
-    }
-
-    .calendar-ruler,
-    .calendar-row {
-        grid-template-columns: 72px 1fr;
-        gap: 6px;
-    }
-
-    .calendar-lines {
-        left: 78px;
     }
 
     .calendar-row-label {
