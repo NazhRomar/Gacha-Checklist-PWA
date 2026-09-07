@@ -591,7 +591,8 @@ function applyGlobalVisibility() {
 
     // The game switcher in the sidebar drives whichever view is active -
     // Checklist and Banners each show only the selected game, so it stays
-    // visible either way.
+    // visible for both. Settings isn't game-specific, so it's hidden there.
+    document.getElementById("quick-nav").classList.toggle("d-none", onSettings);
     document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers || !onChecklist);
     document.getElementById("main-dashboard").classList.toggle("d-none", !onChecklist);
     document.getElementById("banners-view").classList.toggle("d-none", !onBanners);
@@ -931,84 +932,79 @@ window.setMenuTab = (tab) => {
     updateMenu();
 };
 
+// A togglable row: label on the left, a switch on the right, the whole row
+// clickable. Purely decorative (no real <input>) - state drives the "on"
+// class directly, same as every other toggle in this app.
+function settingsToggleRow(label, on, onclick, badge) {
+    return `<div class="settings-row" onclick="${onclick}">
+        <span class="settings-row-label">${badge ? `<span class="opt-item-badge ${badge.style}">${badge.text}</span> ` : ""}${label}</span>
+        <span class="settings-toggle ${on ? "on" : ""}"><span class="settings-toggle-thumb"></span></span>
+    </div>`;
+}
+
+// A plain clickable row for actions that aren't a toggle (open a prompt,
+// jump to another view).
+function settingsActionRow(label, onclick, indent) {
+    return `<div class="settings-row settings-action-row ${indent ? "settings-row-indent" : ""}" onclick="${onclick}">
+        <span class="settings-row-label">${label}</span>
+        <span class="settings-row-chevron">&rsaquo;</span>
+    </div>`;
+}
+
 function renderMenuDisplayTab() {
     const syncCfg = loadSyncCfg();
-    let html = `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('monthly'); return false;">
-        <input type="checkbox" class="form-check-input mt-0" ${state.hideMonthly ? "checked" : ""}> Hide Monthly Column
-    </a></li>
-    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('timers'); return false;">
-        <input type="checkbox" class="form-check-input mt-0" ${state.hideTimers ? "checked" : ""}> Hide Reset Timers
-    </a></li><hr class="dropdown-divider"><li class="dropdown-header">Sync</li>`;
+    let html = settingsToggleRow("Hide Monthly Column", state.hideMonthly, "toggleConfig('monthly')")
+        + settingsToggleRow("Hide Reset Timers", state.hideTimers, "toggleConfig('timers')")
+        + `<div class="settings-section-title">Sync</div>`;
 
     if (syncCfg.enabled && syncCfg.workerUrl && syncCfg.pin) {
-        html += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="syncNow(); return false;">
-            <span class="opt-item-override">⟳</span> Sync Now
-        </a></li>
-        <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setupSync(); return false;">
-            <span class="opt-item-override">✎</span> Sync Settings&hellip;
-        </a></li>
-        <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="disableSync(); return false;">
-            <span class="opt-item-override">✕</span> Turn Off Sync
-        </a></li>`;
+        html += settingsActionRow("Sync Now", "syncNow()")
+            + settingsActionRow("Sync Settings&hellip;", "setupSync()")
+            + settingsActionRow("Turn Off Sync", "disableSync()");
     } else {
-        html += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="setupSync(); return false;">
-            <span class="opt-item-override">✎</span> Set Up Sync&hellip;
-        </a></li>`;
+        html += settingsActionRow("Set Up Sync&hellip;", "setupSync()");
     }
     return html;
 }
 
 function renderMenuGamesTab() {
-    return games.map(g => `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('game', '${g.id}'); return false;">
-        <input type="checkbox" class="form-check-input mt-0" ${!state.hidden.includes(g.id) ? "checked" : ""}> ${g.name}
-    </a></li>`).join("");
+    return games.map(g =>
+        settingsToggleRow(g.name, !state.hidden.includes(g.id), `toggleConfig('game', '${g.id}')`)
+    ).join("");
 }
 
 function renderMenuItemsTab() {
-    let html = `<li class="dropdown-header">Weekly Streak</li>
-    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('weeklystreak'); return false;">
-        <input type="checkbox" class="form-check-input mt-0" ${state.gwEnabled ? "checked" : ""}>
-        <span class="opt-item-badge gi-theme">GI</span> Weekly Streak
-    </a></li>` + (state.gwEnabled ? `
-    <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="startWeeklyProgressEdit(); return false;">
-        <span class="opt-item-override">✎</span> Edit Weekly Progress
-    </a></li>
-    <li><a class="dropdown-item d-flex align-items-center gap-2 ps-4" href="#" onclick="overrideRewardProgress(); return false;">
-        <span class="opt-item-override">✎</span> Set Reward Progress (${state.gwPoints}/8)
-    </a></li>` : "");
+    let html = `<div class="settings-section-title">Weekly Streak</div>`
+        + settingsToggleRow("Weekly Streak", state.gwEnabled, "toggleConfig('weeklystreak')", { style: "gi-theme", text: "GI" })
+        + (state.gwEnabled ? settingsActionRow("Edit Weekly Progress", "startWeeklyProgressEdit()", true)
+            + settingsActionRow(`Set Reward Progress (${state.gwPoints}/8)`, "overrideRewardProgress()", true) : "");
 
-    html += `<hr class="dropdown-divider"><li class="dropdown-header">Abyss</li>
-    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('abyss'); return false;">
-        <input type="checkbox" class="form-check-input mt-0" ${state.abyssEnabled ? "checked" : ""}>
-        <span class="opt-item-badge gi-theme">GI</span> Abyss Tab
-    </a></li>`;
+    html += `<div class="settings-section-title">Abyss</div>`
+        + settingsToggleRow("Abyss Tab", state.abyssEnabled, "toggleConfig('abyss')", { style: "gi-theme", text: "GI" });
 
     let optionalItemsHtml = "";
     forEachOptionalTask((g, type, i, t) => {
         const taskId = `${g.id}-${type}-${i}`;
         const isVisible = !state.hidden.includes(taskId);
-        optionalItemsHtml += `<li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('game', '${taskId}'); return false;">
-            <input type="checkbox" class="form-check-input mt-0" ${isVisible ? "checked" : ""}>
-            <span class="opt-item-badge ${g.style}">${g.badge}</span> ${t.label}
-        </a></li>`;
+        optionalItemsHtml += settingsToggleRow(t.label, isVisible, `toggleConfig('game', '${taskId}')`, { style: g.style, text: g.badge });
     });
 
     if (optionalItemsHtml) {
-        html += `<hr class="dropdown-divider"><li class="dropdown-header">Optional Items</li>` + optionalItemsHtml;
+        html += `<div class="settings-section-title">Optional Items</div>` + optionalItemsHtml;
     }
     return html;
 }
 
 function updateMenu() {
-    const tabsHtml = `<li class="menu-tabs">` + MENU_TABS.map(t =>
+    const tabsHtml = `<div class="menu-tabs">` + MENU_TABS.map(t =>
         `<a href="#" class="menu-tab ${menuTab === t.id ? "active" : ""}" onclick="setMenuTab('${t.id}'); return false;">${t.label}</a>`
-    ).join("") + `</li>`;
+    ).join("") + `</div>`;
 
     const body = menuTab === "games" ? renderMenuGamesTab()
         : menuTab === "items" ? renderMenuItemsTab()
         : renderMenuDisplayTab();
 
-    document.getElementById("settings-body").innerHTML = tabsHtml + body;
+    document.getElementById("settings-body").innerHTML = tabsHtml + `<div class="settings-section">${body}</div>`;
 }
 
 window.toggleConfig = (type, id) => {

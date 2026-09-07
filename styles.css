@@ -155,10 +155,6 @@ body {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
-.settings-card li {
-    list-style: none;
-}
-
 .settings-status {
     display: grid;
     grid-template-columns: repeat(2, auto);
@@ -209,37 +205,90 @@ body {
     border-color: #e4e4e7;
 }
 
-.dropdown-header {
-    color: var(--text-tertiary) !important;
-    font-size: 0.68rem;
+.settings-section-title {
+    color: var(--text-tertiary);
+    font-size: 0.7rem;
     font-weight: 800;
     letter-spacing: 1.5px;
     text-transform: uppercase;
-    padding: 8px 10px 4px !important;
+    padding: 18px 4px 8px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 8px;
 }
 
-.dropdown-divider {
-    border-color: var(--border-color) !important;
-    margin: 8px 4px !important;
+.settings-section-title:first-child {
+    padding-top: 4px;
+    border-top: none;
+    margin-top: 0;
 }
 
-.dropdown-item {
-    border-radius: 10px !important;
-    padding: 9px 10px !important;
-    font-size: 0.88rem;
+.settings-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 4px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.settings-row:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.settings-row-indent {
+    padding-left: 20px;
+}
+
+.settings-row-indent .settings-row-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.settings-row-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95rem;
     font-weight: 600;
-    color: #e4e4e7 !important;
-    transition: background 0.15s ease, color 0.15s ease;
+    color: #efefef;
 }
 
-.dropdown-item:hover,
-.dropdown-item:focus {
-    background: rgba(255, 255, 255, 0.07) !important;
-    color: #fff !important;
+.settings-row-chevron {
+    color: var(--text-tertiary);
+    font-size: 1.1rem;
+    flex-shrink: 0;
 }
 
-.dropdown-item .form-check-input {
-    margin-right: 10px;
+.settings-toggle {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    transition: background 0.2s ease;
+}
+
+.settings-toggle.on {
+    background: var(--gi-color);
+}
+
+.settings-toggle-thumb {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    transition: transform 0.2s ease;
+}
+
+.settings-toggle.on .settings-toggle-thumb {
+    transform: translateX(18px);
 }
 
 .opt-item-badge {
@@ -257,20 +306,6 @@ body {
     text-align: center;
     line-height: 1;
     flex-shrink: 0;
-}
-
-.opt-item-override {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 16px;
-    color: var(--text-tertiary);
-    font-size: 0.8rem;
-    flex-shrink: 0;
-}
-
-.dropdown-item:hover .opt-item-override {
-    color: #e4e4e7;
 }
 
 /* --- Game Nav (quick-nav) --- */
