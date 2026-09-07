@@ -96,6 +96,7 @@ const DEFAULT_STATE = {
     hideFooter: false,
     activeGame: null,
     activeType: "d",
+    appTab: "checklist",
     lastD: 0,
     lastW: 0,
     lastM: 0,
@@ -291,6 +292,169 @@ function startSyncLoop() {
     setInterval(renderSyncStatus, 5000);
 }
 
+// --- Live Banners (optional, via a public fan-maintained HoYoverse API) ---
+// This is read-only reference info, not app data - it isn't tracked in
+// `state` (no checked/hidden/reset logic applies) and isn't synced across
+// devices, since it's the same for everyone. Cached separately in
+// localStorage so switching to the tab feels instant after the first load,
+// and so a transient network hiccup doesn't blank out otherwise-good data.
+// This relies on an unofficial third-party API (not run by HoYoverse or us)
+// - if it's ever down or changes shape, fetchBanners() falls back to
+// whatever's cached, or an empty list rather than breaking the page.
+const BANNER_ENDPOINTS = {
+    gi: "https://api.ennead.cc/mihoyo/genshin/calendar",
+    hsr: "https://api.ennead.cc/mihoyo/starrail/calendar",
+    zzz: "https://api.ennead.cc/mihoyo/zenless/calendar",
+};
+const BANNER_TARGETS = [
+    { gid: "gi", style: "gi-theme", name: "Genshin Impact" },
+    { gid: "hsr", style: "hsr-theme", name: "Honkai: Star Rail" },
+    { gid: "zzz", style: "zzz-theme", name: "Zenless Zone Zero" },
+];
+const BANNER_CACHE_KEY = "gacha_banners_cache";
+const BANNER_CACHE_MAX_AGE = 15 * 60 * 1000;
+
+function loadBannerCache() {
+    try {
+        return JSON.parse(localStorage.getItem(BANNER_CACHE_KEY)) || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveBannerCache(cache) {
+    try {
+        localStorage.setItem(BANNER_CACHE_KEY, JSON.stringify(cache));
+    } catch (e) {
+        // Ignore - worst case the next load just re-fetches.
+    }
+}
+
+// Each game's API shapes banners differently (field names, rarity as a
+// number vs a letter grade, no `name` at all for HSR) - this normalizes all
+// three into the same {label, items, endTime} shape the renderer expects,
+// filtered down to only banners that are actually live right now.
+function normalizeBanners(gameKey, raw) {
+    const now = Date.now();
+    const live = (raw.banners || [])
+        .map(b => ({ ...b, start_time: b.start_time * 1000, end_time: b.end_time * 1000 }))
+        .filter(b => b.start_time <= now && now <= b.end_time);
+
+    if (gameKey === "gi") {
+        return live.map(b => ({
+            label: b.name,
+            items: [...b.characters, ...b.weapons].map(x => ({ name: x.name, icon: x.icon, top: x.rarity === 5 })),
+            endTime: b.end_time,
+        }));
+    }
+    if (gameKey === "hsr") {
+        const seen = { character: 0, weapon: 0 };
+        return live.map(b => {
+            const isChar = b.characters.length > 0;
+            const kind = isChar ? "character" : "weapon";
+            seen[kind]++;
+            const base = isChar ? "Character Event Warp" : "Light Cone Event Warp";
+            return {
+                label: seen[kind] > 1 ? `${base} ${seen[kind]}` : base,
+                items: [...b.characters, ...(b.light_cones || [])].map(x => ({ name: x.name, icon: x.icon, top: x.rarity === 5 })),
+                endTime: b.end_time,
+            };
+        });
+    }
+    // zzz
+    const zzzSeen = {};
+    return live.map(b => {
+        const isChar = b.banner_type.includes("CHARACTER");
+        const isRerun = b.banner_type.includes("RETURN");
+        const base = (isChar ? "Exclusive Channel" : "W-Engine Channel") + (isRerun ? " (Rerun)" : "");
+        zzzSeen[base] = (zzzSeen[base] || 0) + 1;
+        return {
+            label: zzzSeen[base] > 1 ? `${base} ${zzzSeen[base]}` : base,
+            items: [...(b.agents || []), ...(b.w_engines || [])].map(x => ({ name: x.name, icon: x.icon, top: x.rarity === "S" })),
+            endTime: b.end_time,
+        };
+    });
+}
+
+async function fetchBanners(gameKey, force = false) {
+    const cache = loadBannerCache();
+    const entry = cache[gameKey];
+    if (!force && entry && Date.now() - entry.fetchedAt < BANNER_CACHE_MAX_AGE) {
+        return entry;
+    }
+    try {
+        const res = await fetch(BANNER_ENDPOINTS[gameKey]);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const raw = await res.json();
+        const updated = { banners: normalizeBanners(gameKey, raw), fetchedAt: Date.now(), error: null };
+        cache[gameKey] = updated;
+        saveBannerCache(cache);
+        return updated;
+    } catch (e) {
+        return entry || { banners: [], fetchedAt: 0, error: "load-failed" };
+    }
+}
+
+function bannerCountdown(endTime) {
+    const msLeft = Math.max(0, endTime - Date.now());
+    const days = Math.floor(msLeft / 86400000);
+    const hours = Math.floor((msLeft % 86400000) / 3600000);
+    return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
+}
+
+function renderBannerCard(target, result) {
+    const body = result.error
+        ? `<div class="banner-empty">Couldn&rsquo;t load banners &mdash; try again later.</div>`
+        : result.loading
+        ? `<div class="banner-empty">Loading&hellip;</div>`
+        : result.banners.length === 0
+        ? `<div class="banner-empty">No active banners right now.</div>`
+        : result.banners.map(b => `
+            <div class="banner-block">
+                <div class="banner-block-header">
+                    <span class="banner-block-label">${b.label}</span>
+                    <span class="banner-block-countdown">Ends in ${bannerCountdown(b.endTime)}</span>
+                </div>
+                <div class="banner-chars">
+                    ${b.items.map(it => `
+                        <div class="banner-char ${it.top ? "banner-char-top" : ""}">
+                            <span class="banner-char-icon"><img src="${it.icon}" alt="${it.name}" loading="lazy"></span>
+                            <span class="banner-char-name">${it.name}</span>
+                        </div>`).join("")}
+                </div>
+            </div>`).join("");
+
+    return `
+    <div class="banner-game-card ${target.style}">
+        <div class="game-header">
+            <h2 class="game-title">${target.name}</h2>
+        </div>
+        <div class="banner-card-body">${body}</div>
+    </div>`;
+}
+
+async function renderBannersView() {
+    const el = document.getElementById("banners-view");
+    if (!el) return;
+
+    const cache = loadBannerCache();
+    el.innerHTML = BANNER_TARGETS.map(t => renderBannerCard(t, cache[t.gid] || { loading: true })).join("");
+
+    const results = await Promise.all(BANNER_TARGETS.map(t => fetchBanners(t.gid)));
+    // The user may have switched back to the checklist tab while this was
+    // in flight - only repaint if Banners is still the active view.
+    if (state.appTab === "banners") {
+        el.innerHTML = BANNER_TARGETS.map((t, i) => renderBannerCard(t, results[i])).join("");
+    }
+}
+
+window.setAppTab = (tab) => {
+    state.appTab = tab;
+    window.save();
+    buildDashboard();
+    if (tab === "banners") renderBannersView();
+};
+
 const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly", a: "Abyss" };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const isMobile = () => window.innerWidth < 768;
@@ -408,7 +572,17 @@ window.overrideRewardProgress = () => {
 };
 
 function applyGlobalVisibility() {
-    document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers);
+    const onBanners = state.appTab === "banners";
+
+    document.getElementById("app-tabs").innerHTML = [
+        { id: "checklist", label: "Checklist" },
+        { id: "banners", label: "Banners" },
+    ].map(t => `<a href="#" class="app-tab ${state.appTab === t.id ? "active" : ""}" onclick="setAppTab('${t.id}'); return false;">${t.label}</a>`).join("");
+
+    document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers || onBanners);
+    document.getElementById("quick-nav-wrap")?.classList.toggle("d-none", onBanners);
+    document.getElementById("main-dashboard").classList.toggle("d-none", onBanners);
+    document.getElementById("banners-view").classList.toggle("d-none", !onBanners);
     document.getElementById("app-footer").classList.toggle("d-none", state.hideFooter);
 }
 
@@ -942,6 +1116,7 @@ if (state.lastTheater < currentMonthlyReset.getTime()) {
 runWeeklyStreakCycleCheck();
 
 buildDashboard();
+if (state.appTab === "banners") renderBannersView();
 setInterval(updateLiveText, 1000);
 startSyncLoop();
 }
