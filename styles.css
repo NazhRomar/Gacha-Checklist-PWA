@@ -14,10 +14,16 @@
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 18px;
+    --sidebar-width: 260px;
+    --content-max-width: 880px;
 }
 
 * {
     box-sizing: border-box;
+}
+
+html, body {
+    min-height: 100vh;
 }
 
 body {
@@ -28,27 +34,116 @@ body {
     background-attachment: fixed;
     color: #efefef;
     font-family: "Plus Jakarta Sans", sans-serif;
-    min-height: 100vh;
+}
+
+/* --- App Shell --- */
+.app-shell {
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
 }
 
-/* --- Header & Subheader --- */
-.navbar {
-    background: rgba(8, 9, 10, 0.85);
+.app-main {
+    flex: 1;
+    min-width: 0;
+}
+
+/* --- Sidebar (top bar on mobile, left rail on desktop) --- */
+.app-sidebar {
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+    display: flex;
+    flex-direction: column;
+    background: rgba(10, 11, 13, 0.92);
     backdrop-filter: blur(18px);
     border-bottom: 1px solid var(--border-color);
-    padding: 0.7rem 0;
-    z-index: 1030;
 }
 
-.navbar .btn {
-    border-radius: 10px;
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 18px;
+}
+
+.brand-mark {
+    color: var(--gi-color);
+    font-size: 1.1rem;
+    filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6));
+}
+
+.brand-name {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    line-height: 1.25;
+    background: linear-gradient(90deg, #fff, var(--text-secondary));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* --- Bottom Navigation --- */
+.bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1035;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: rgba(10, 11, 13, 0.94);
+    backdrop-filter: blur(18px);
+    border-top: 1px solid var(--border-color);
+}
+
+.bottom-nav-dropdown {
+    flex: 1 1 0;
+    max-width: 160px;
+}
+
+.bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    flex: 1 1 0;
+    max-width: 160px;
+    width: 100%;
+    padding: 6px 8px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    text-decoration: none;
     transition: all 0.2s ease;
 }
 
-.navbar .btn:hover {
+.bottom-nav-item:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.bottom-nav-item.active {
+    color: #fff;
     background: rgba(255, 255, 255, 0.08);
+}
+
+.bottom-nav-icon {
+    font-size: 1.15rem;
+    line-height: 1;
+    color: var(--gi-color);
+}
+
+.bottom-nav-label {
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
 }
 
 /* --- Hamburger / Visibility Menu --- */
@@ -62,7 +157,7 @@ body {
     min-width: 260px;
     max-height: min(70vh, 520px);
     overflow-y: auto;
-    z-index: 1030;
+    z-index: 1040;
 }
 
 .menu-tabs {
@@ -165,20 +260,105 @@ body {
     color: #e4e4e7;
 }
 
-.navbar .h5 {
-    letter-spacing: 2px;
-    background: linear-gradient(90deg, #fff, var(--text-secondary));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+/* --- Game Nav (quick-nav) --- */
+.quick-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 12px 12px;
 }
 
+.quick-pill {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+    background: transparent;
+    color: #efefef;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.quick-pill-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: #000;
+    border: 1.5px solid transparent;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.quick-pill-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.quick-pill-name {
+    flex: 1;
+    font-size: 0.85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.quick-pill:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.quick-pill.active {
+    border-color: var(--game-accent);
+    background: color-mix(in srgb, var(--game-accent) 14%, rgba(255, 255, 255, 0.03));
+}
+
+.quick-pill.active .quick-pill-icon {
+    border-color: var(--game-accent);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--game-accent) 70%, transparent);
+}
+
+.quick-pill.active .quick-pill-name {
+    color: var(--game-accent);
+}
+
+.quick-pill-count {
+    font-family: "JetBrains Mono", monospace;
+    color: var(--game-accent);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}
+
+.quick-pill.done {
+    opacity: 0.45;
+}
+
+.quick-pill.done .quick-pill-icon {
+    box-shadow: none;
+}
+
+/* --- Sub Nav (reset timers) --- */
 .sub-nav {
-    background: rgba(255, 255, 255, 0.02);
     border-bottom: 1px solid var(--border-color);
-    padding: 6px 0;
+    padding: 10px 20px;
     font-size: 0.75rem;
     font-family: "JetBrains Mono", monospace;
+}
+
+.sub-nav-inner {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1.25rem;
+    font-weight: 700;
+    max-width: var(--content-max-width);
+    margin: 0 auto;
 }
 
 .t-d {
@@ -198,10 +378,11 @@ body {
     font-weight: 500;
 }
 
-/* --- Main Dashboard --- */
+/* --- Main Content --- */
 .main-content {
-    flex: 1;
-    margin-top: 24px;
+    max-width: var(--content-max-width);
+    margin: 24px auto;
+    padding: 0 20px;
 }
 
 .game-section {
@@ -226,7 +407,10 @@ body {
     background: linear-gradient(90deg, var(--game-accent), transparent 85%);
 }
 
-.game-section.visible {
+/* Only the game currently selected in the sidebar shows - the pills there
+   are the only navigation needed, so there's no reason to also stack every
+   game's card and make the page scroll past the ones you're not using. */
+.game-section.visible.active-game {
     display: block;
 }
 
@@ -272,7 +456,6 @@ body {
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.08);
     overflow: hidden;
-    display: none;
 }
 
 .progress-fill {
@@ -305,132 +488,6 @@ body {
 
 .game-section.collapsed .task-grid {
     display: none;
-}
-
-/* --- App-level Checklist/Banners tabs --- */
-.app-tabs-wrap {
-    top: 0;
-    z-index: 1025;
-    background: rgba(8, 9, 10, 0.9);
-    backdrop-filter: blur(18px);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.app-tabs {
-    display: flex;
-    gap: 8px;
-    padding: 10px 12px;
-}
-
-.app-tab {
-    flex: 1;
-    text-align: center;
-    padding: 9px 12px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--border-color);
-    background: rgba(255, 255, 255, 0.03);
-    color: var(--text-secondary);
-    font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    text-decoration: none;
-    transition: all 0.2s ease;
-}
-
-.app-tab:hover {
-    color: #fff;
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.app-tab.active {
-    color: #000;
-    background: #e4e4e7;
-    border-color: #e4e4e7;
-}
-
-/* --- Quick Jump Nav --- */
-.quick-nav-wrap {
-    top: 0;
-    z-index: 1020;
-    background: rgba(8, 9, 10, 0.9);
-    backdrop-filter: blur(18px);
-    border-bottom: 1px solid var(--border-color);
-}
-
-.quick-nav {
-    display: flex;
-    gap: 8px;
-    padding: 10px 12px;
-}
-
-.quick-pill {
-    flex: 1 1 0;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 4px 10px 4px 4px;
-    border-radius: 999px;
-    border: 1px solid var(--border-color);
-    background: rgba(255, 255, 255, 0.03);
-    color: #efefef;
-    font-weight: 700;
-    text-decoration: none;
-    white-space: nowrap;
-    transition: all 0.2s ease;
-    cursor: pointer;
-}
-
-.quick-pill-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    overflow: hidden;
-    flex-shrink: 0;
-    background: #000;
-    border: 1.5px solid transparent;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.quick-pill-icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.quick-pill:active,
-.quick-pill:hover {
-    border-color: var(--game-accent);
-    background: color-mix(in srgb, var(--game-accent) 12%, rgba(255, 255, 255, 0.03));
-}
-
-.quick-pill.active {
-    border-color: var(--game-accent);
-    background: color-mix(in srgb, var(--game-accent) 16%, rgba(255, 255, 255, 0.04));
-}
-
-.quick-pill.active .quick-pill-icon {
-    border-color: var(--game-accent);
-    box-shadow: 0 0 10px color-mix(in srgb, var(--game-accent) 70%, transparent);
-}
-
-.quick-pill-count {
-    font-family: "JetBrains Mono", monospace;
-    color: var(--game-accent);
-    font-size: 0.7rem;
-}
-
-.quick-pill.done {
-    opacity: 0.45;
-}
-
-.quick-pill.done .quick-pill-icon {
-    box-shadow: none;
 }
 
 /* --- Daily/Weekly/Monthly segmented tabs --- */
@@ -470,8 +527,8 @@ body {
 .task-column {
     display: none;
     flex: 1;
-    min-width: 300px;
-    padding: 22px 28px;
+    min-width: 0;
+    padding: 18px 22px;
 }
 
 .task-column.type-active {
@@ -480,7 +537,7 @@ body {
 
 /* The type-tabs above already say Daily/Weekly/Monthly, so repeating it
    as a column heading is redundant now that only one column shows at a
-   time (both on mobile and desktop). */
+   time. */
 .column-title {
     display: none;
 }
@@ -494,7 +551,7 @@ body {
 
 /* --- Weekly Streak Widget (Genshin) --- */
 .gw-widget {
-    padding: 16px 28px 20px;
+    padding: 16px 22px 20px;
     border-top: 1px solid var(--border-color);
     background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--game-accent) 5%, transparent));
 }
@@ -852,23 +909,30 @@ body {
 }
 
 .banner-card-body {
-    padding: 20px 28px 24px;
+    padding: 20px 22px 24px;
+}
+
+/* Only one game's banners show at a time now, so there's room to tile
+   its 2-3 banner blocks (character phases + weapon) side by side instead
+   of stacking them full-width with a sparse row of icons each. */
+.banner-blocks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
 }
 
 .banner-block {
-    margin-bottom: 20px;
-}
-
-.banner-block:last-child {
-    margin-bottom: 0;
+    padding: 16px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
 }
 
 .banner-block-header {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    gap: 10px;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 14px;
 }
 
 .banner-block-label {
@@ -897,12 +961,12 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    width: 68px;
+    width: 72px;
 }
 
 .banner-char-icon {
-    width: 56px;
-    height: 56px;
+    width: 60px;
+    height: 60px;
     border-radius: 50%;
     overflow: hidden;
     background: #000;
@@ -939,23 +1003,24 @@ body {
     font-size: 0.85rem;
 }
 
+/* --- Footer --- */
 footer {
     flex-shrink: 0;
     border-top: 1px solid var(--border-color);
-    padding: 10px 0;
-    margin-top: 20px;
-    background: rgba(255, 255, 255, 0.015);
+    padding: 14px 20px;
     color: var(--text-tertiary);
     font-size: 0.7rem;
 }
 
-footer .container {
+.footer-inner {
     display: grid;
     grid-template-columns: repeat(4, auto);
     justify-content: space-between;
     align-items: center;
     column-gap: 18px;
     row-gap: 4px;
+    max-width: var(--content-max-width);
+    margin: 0 auto;
 }
 
 .footer-stat {
@@ -1028,114 +1093,83 @@ footer .container {
 }
 
 /* --- Responsive Layout --- */
-@media (min-width: 768px) {
-    .progress-track {
-        display: block;
+/* The bottom nav is fixed everywhere, so the page needs bottom breathing
+   room at every width or content sits behind it. */
+.app-main {
+    padding-bottom: 76px;
+}
+
+/* Below this: sidebar collapses into a compact top bar (brand, then a
+   horizontal scrollable game strip). At/above it: a persistent left rail,
+   and the page becomes two columns. */
+@media (min-width: 900px) {
+    .app-shell {
+        flex-direction: row;
+    }
+
+    .app-sidebar {
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+        height: 100vh;
+        width: var(--sidebar-width);
+        flex-shrink: 0;
+        border-bottom: none;
+        border-right: 1px solid var(--border-color);
+        overflow-y: auto;
+    }
+
+    .quick-pill {
+        padding: 9px 10px;
+    }
+
+    .bottom-nav {
+        left: var(--sidebar-width);
     }
 }
 
-/* Below md: one game + one task-type visible at a time, driven by tabs */
-@media (max-width: 767.98px) {
-    /* App-shell layout: header rows are fixed height, only the
-       checklist itself scrolls, so the game bar / title / type tabs
-       stay in place no matter how long the list is. */
-    html, body {
-        height: 100dvh;
-        max-height: 100dvh;
-        /* The base rule below sets min-height: 100vh for the non-app-shell
-           layout. On mobile, 100vh is often taller than the real visible
-           viewport (100dvh), so without this override the larger min-height
-           wins, body renders taller than the screen, and overflow:hidden
-           clips the footer off below the fold instead of just hiding
-           overflow within it. */
-        min-height: 100dvh;
-        overflow: hidden;
+@media (max-width: 899.98px) {
+    .brand {
+        padding: 12px 16px;
     }
 
-    .main-content {
-        flex: 1;
-        min-height: 0;
-        max-height: 100%;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-        margin-top: 0;
+    .brand-name {
+        font-size: 0.78rem;
     }
 
-    /* Unlike the checklist (#main-dashboard), Banners has no per-game tab
-       system to delegate scrolling to one active column - it's just a
-       simple stacked list, so it needs to scroll as a whole. */
-    #banners-view {
-        overflow-y: auto;
+    .quick-nav {
+        padding: 0 12px 10px;
+        flex-direction: row;
+        overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
 
-    .game-section.visible {
+    .quick-pill {
+        flex: 1 1 0;
+        min-width: 0;
+        justify-content: center;
+        padding: 6px 8px;
+    }
+
+    .quick-pill-name {
         display: none;
     }
 
-    .game-section.visible.mobile-active {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        min-height: 0;
-        margin-bottom: 0;
-    }
-
-    .game-header {
-        cursor: default;
-        flex-shrink: 0;
-    }
-
-    .collapse-arrow {
-        display: none;
-    }
-
-    .type-tabs {
-        flex-shrink: 0;
-    }
-
-    .task-grid {
-        flex: 1;
-        flex-direction: column;
-        min-height: 0;
-    }
-
-    .task-column.type-active {
-        flex: 1;
-        min-height: 0;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .gw-widget {
-        flex-shrink: 0;
+    .sub-nav-inner {
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 0.9rem;
     }
 }
 
 @media (max-width: 576px) {
-    .navbar {
-        padding: 0.45rem 0;
-    }
-
-    .navbar .h5 {
-        font-size: 1rem;
-        letter-spacing: 1px;
-    }
-
-    .quick-nav {
-        padding: 8px 10px;
-    }
-
-    .quick-pill {
-        padding: 4px 8px 4px 4px;
-        font-size: 0.68rem;
-        gap: 5px;
+    .brand {
+        padding: 10px 14px;
     }
 
     .quick-pill-icon {
-        width: 24px;
-        height: 24px;
+        width: 26px;
+        height: 26px;
     }
 
     .quick-pill-count {
@@ -1165,12 +1199,6 @@ footer .container {
 
     .task-column {
         padding: 14px 14px;
-        min-width: 0;
-    }
-
-    .column-title {
-        font-size: 0.62rem;
-        margin-bottom: 10px;
     }
 
     .checklist-main {
@@ -1200,28 +1228,15 @@ footer .container {
         font-size: 0.62rem;
     }
 
-    .form-check-input {
-        width: 18px;
-        height: 18px;
-        margin-right: 12px;
-    }
-
     .sub-nav {
         font-size: 0.66rem;
     }
 
-    .sub-nav .container {
-        gap: 0.75rem !important;
-        flex-wrap: wrap;
-        justify-content: center !important;
-    }
-
     footer {
-        padding: 8px 0;
-        margin-top: 0;
+        padding: 10px 16px;
     }
 
-    footer .container {
+    .footer-inner {
         grid-template-columns: 1fr 1fr;
         column-gap: 12px;
         row-gap: 3px;

@@ -409,7 +409,7 @@ function renderBannerCard(target, result) {
         ? `<div class="banner-empty">Loading&hellip;</div>`
         : result.banners.length === 0
         ? `<div class="banner-empty">No active banners right now.</div>`
-        : result.banners.map(b => `
+        : `<div class="banner-blocks">` + result.banners.map(b => `
             <div class="banner-block">
                 <div class="banner-block-header">
                     <span class="banner-block-label">${b.label}</span>
@@ -422,7 +422,7 @@ function renderBannerCard(target, result) {
                             <span class="banner-char-name">${it.name}</span>
                         </div>`).join("")}
                 </div>
-            </div>`).join("");
+            </div>`).join("") + `</div>`;
 
     return `
     <div class="banner-game-card ${target.style}">
@@ -433,18 +433,27 @@ function renderBannerCard(target, result) {
     </div>`;
 }
 
+// Banners follows the same single-active-game model as the checklist - the
+// sidebar pills are the only game switcher needed, so this only ever shows
+// the currently selected game instead of every game stacked at once.
 async function renderBannersView() {
     const el = document.getElementById("banners-view");
     if (!el) return;
 
-    const cache = loadBannerCache();
-    el.innerHTML = BANNER_TARGETS.map(t => renderBannerCard(t, cache[t.gid] || { loading: true })).join("");
+    const target = BANNER_TARGETS.find(t => t.gid === state.activeGame);
+    if (!target) {
+        el.innerHTML = `<div class="banner-empty">No banner data available for this game.</div>`;
+        return;
+    }
 
-    const results = await Promise.all(BANNER_TARGETS.map(t => fetchBanners(t.gid)));
-    // The user may have switched back to the checklist tab while this was
-    // in flight - only repaint if Banners is still the active view.
-    if (state.appTab === "banners") {
-        el.innerHTML = BANNER_TARGETS.map((t, i) => renderBannerCard(t, results[i])).join("");
+    const cache = loadBannerCache();
+    el.innerHTML = renderBannerCard(target, cache[target.gid] || { loading: true });
+
+    const result = await fetchBanners(target.gid);
+    // The user may have switched games, or back to the checklist tab,
+    // while this was in flight - only repaint if still relevant.
+    if (state.appTab === "banners" && state.activeGame === target.gid) {
+        el.innerHTML = renderBannerCard(target, result);
     }
 }
 
@@ -457,7 +466,6 @@ window.setAppTab = (tab) => {
 
 const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly", a: "Abyss" };
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const isMobile = () => window.innerWidth < 768;
 
 const WEEK_MS = 604800000;
 const CYCLE_WEEKS = 12;
@@ -509,6 +517,19 @@ function closeVisibilityMenu() {
     const toggle = document.querySelector('[data-bs-toggle="dropdown"]');
     const inst = toggle && bootstrap.Dropdown.getInstance(toggle);
     if (inst) inst.hide();
+}
+
+// The Settings toggle lives inside the fixed-position bottom nav. Popper's
+// default "absolute" strategy positions the menu relative to that fixed
+// ancestor's own box instead of the viewport, which throws off the dropup
+// placement math and lets the menu render below the fold. "fixed" strategy
+// positions it relative to the viewport instead, like the toggle itself.
+function initSettingsDropdown() {
+    const toggle = document.querySelector('[data-bs-toggle="dropdown"]');
+    if (!toggle) return;
+    new bootstrap.Dropdown(toggle, {
+        popperConfig: (defaultConfig) => ({ ...defaultConfig, strategy: "fixed" }),
+    });
 }
 
 function runWeeklyStreakCycleCheck() {
@@ -574,13 +595,13 @@ window.overrideRewardProgress = () => {
 function applyGlobalVisibility() {
     const onBanners = state.appTab === "banners";
 
-    document.getElementById("app-tabs").innerHTML = [
-        { id: "checklist", label: "Checklist" },
-        { id: "banners", label: "Banners" },
-    ].map(t => `<a href="#" class="app-tab ${state.appTab === t.id ? "active" : ""}" onclick="setAppTab('${t.id}'); return false;">${t.label}</a>`).join("");
+    document.getElementById("nav-checklist").classList.toggle("active", !onBanners);
+    document.getElementById("nav-banners").classList.toggle("active", onBanners);
 
+    // The game switcher in the sidebar drives whichever view is active -
+    // Checklist and Banners each show only the selected game, so it stays
+    // visible either way.
     document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers || onBanners);
-    document.getElementById("quick-nav-wrap")?.classList.toggle("d-none", onBanners);
     document.getElementById("main-dashboard").classList.toggle("d-none", onBanners);
     document.getElementById("banners-view").classList.toggle("d-none", !onBanners);
     document.getElementById("app-footer").classList.toggle("d-none", state.hideFooter);
@@ -601,7 +622,6 @@ function taskCounts(g) {
 }
 
 window.toggleCollapse = (gid) => {
-    if (isMobile()) return; // mobile uses tabs instead of collapsing
     state.collapsed = state.collapsed.includes(gid) ? state.collapsed.filter(c => c !== gid) : [...state.collapsed, gid];
     window.save();
     buildDashboard();
@@ -611,6 +631,7 @@ window.setActiveGame = (gid) => {
     state.activeGame = gid;
     window.save();
     buildDashboard();
+    if (state.appTab === "banners") renderBannersView();
 };
 
 window.setActiveType = (type) => {
@@ -725,6 +746,7 @@ function buildDashboard() {
             const isActive = g.id === state.activeGame;
             return `<button type="button" class="quick-pill ${g.style} ${doneAll ? "done" : ""} ${isActive ? "active" : ""}" onclick="setActiveGame('${g.id}')" title="${g.name}">
                 <span class="quick-pill-icon"><img src="images/${g.icon}" alt="${g.name}"></span>
+                <span class="quick-pill-name">${g.name}</span>
                 <span class="quick-pill-count">${done}/${total}</span>
             </button>`;
         }).join("");
@@ -734,7 +756,6 @@ function buildDashboard() {
         .map(g => {
             const { done, total } = taskCounts(g);
             const isCollapsed = state.collapsed.includes(g.id);
-            const isMobileActive = g.id === state.activeGame;
             const pct = total > 0 ? Math.round((done / total) * 100) : 0;
             // Abyss/Theater is Genshin-only, so the tab set differs per game -
             // fall back to Daily if the globally-shared activeType doesn't
@@ -742,8 +763,9 @@ function buildDashboard() {
             // "Abyss" and the user switched to a game without that tab).
             const types = ["d", "w", ...(state.hideMonthly ? [] : ["m"]), ...(g.abyss && state.abyssEnabled ? ["a"] : [])];
             const activeType = types.includes(state.activeType) ? state.activeType : "d";
+            const isActiveGame = g.id === state.activeGame;
             return `
-            <div id="section-${g.id}" class="game-section ${g.style} ${!state.hidden.includes(g.id) ? "visible" : ""} ${isCollapsed ? "collapsed" : ""} ${isMobileActive ? "mobile-active" : ""}">
+            <div id="section-${g.id}" class="game-section ${g.style} ${!state.hidden.includes(g.id) ? "visible" : ""} ${isCollapsed ? "collapsed" : ""} ${isActiveGame ? "active-game" : ""}">
                 <div class="game-header" onclick="toggleCollapse('${g.id}')">
                     <h2 class="game-title">${g.name}</h2>
                     <div class="game-header-right">
@@ -1116,6 +1138,7 @@ if (state.lastTheater < currentMonthlyReset.getTime()) {
 runWeeklyStreakCycleCheck();
 
 buildDashboard();
+initSettingsDropdown();
 if (state.appTab === "banners") renderBannersView();
 setInterval(updateLiveText, 1000);
 startSyncLoop();
