@@ -931,7 +931,8 @@ body {
     margin-right: 12px;
     cursor: pointer;
     background-color: #1a1d21;
-    border-color: #3a3a3f;
+    border: 1.5px solid rgba(255, 255, 255, 0.35);
+    flex-shrink: 0;
     transition: all 0.15s ease;
 }
 

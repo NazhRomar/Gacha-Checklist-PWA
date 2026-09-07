@@ -380,12 +380,34 @@ function normalizeBanners(gameKey, raw) {
 // start/end times - used by the Abyss tab below so it doesn't have to guess
 // reset cadences. Kept generic (name/startTime/endTime only) since the
 // shape is consistent across all three games.
-function normalizeChallenges(raw) {
-    return (raw.challenges || []).map(c => ({
-        name: c.name,
-        startTime: c.start_time * 1000,
-        endTime: c.end_time ? c.end_time * 1000 : null,
-    }));
+// Unlike GI/ZZZ, HSR's API returns the specific rotating title for each
+// challenge (e.g. "Celestial Lupine") rather than the mode name - but
+// `type_name` is a stable category that maps to a real mode name.
+// Confirmed against the live game (2026-09): ChallengeTypeStory covers two
+// simultaneous entries (Pure Fiction's two phases), so duplicates get
+// numbered the same way repeated banners already are elsewhere.
+const HSR_CHALLENGE_TYPE_NAMES = {
+    ChallengeTypeBoss: "Apocalyptic Shadow",
+    ChallengeTypePeak: "Anomaly Arbitration",
+    ChallengeTypeChasm: "Memory of Chaos",
+    ChallengeTypeStory: "Pure Fiction",
+};
+
+function normalizeChallenges(gameKey, raw) {
+    const seen = {};
+    return (raw.challenges || []).map(c => {
+        let label = c.name;
+        if (gameKey === "hsr") {
+            const base = HSR_CHALLENGE_TYPE_NAMES[c.type_name] || c.name;
+            seen[base] = (seen[base] || 0) + 1;
+            label = seen[base] > 1 ? `${base} ${seen[base]}` : base;
+        }
+        return {
+            name: label,
+            startTime: c.start_time * 1000,
+            endTime: c.end_time ? c.end_time * 1000 : null,
+        };
+    });
 }
 
 async function fetchBanners(gameKey, force = false) {
@@ -398,7 +420,7 @@ async function fetchBanners(gameKey, force = false) {
         const res = await fetch(BANNER_ENDPOINTS[gameKey]);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const raw = await res.json();
-        const updated = { banners: normalizeBanners(gameKey, raw), challenges: normalizeChallenges(raw), fetchedAt: Date.now(), error: null };
+        const updated = { banners: normalizeBanners(gameKey, raw), challenges: normalizeChallenges(gameKey, raw), fetchedAt: Date.now(), error: null };
         cache[gameKey] = updated;
         saveBannerCache(cache);
         return updated;
