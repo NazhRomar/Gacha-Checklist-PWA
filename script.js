@@ -528,55 +528,12 @@ function renderBannerCard(target, result) {
                 </div>
             </div>`).join("") + `</div>`;
 
-    const eventsHtml = renderEventsSection(result.events);
-
     return `
     <div class="banner-game-card ${target.style}">
         <div class="game-header">
             <h2 class="game-title">${target.name}</h2>
         </div>
-        <div class="banner-card-body">${body}${eventsHtml}</div>
-    </div>`;
-}
-
-// A full date-axis Gantt chart needs a shared calendar header and usually a
-// horizontal scroll to fit more than a couple of weeks - awkward on a
-// narrow phone. This gets the same core value (seeing which events overlap)
-// without either: every event gets one row, sized/positioned as a bar
-// within a shared time window, so overlapping events visually line up -
-// just without a literal date ruler or the need to scroll.
-function renderEventsSection(events) {
-    if (!events || events.length === 0) return "";
-
-    const now = Date.now();
-    const windowStart = Math.min(now, ...events.map(e => e.startTime));
-    const windowEnd = Math.max(now, ...events.map(e => e.endTime));
-    const span = Math.max(1, windowEnd - windowStart);
-    const nowPct = Math.min(100, Math.max(0, ((now - windowStart) / span) * 100));
-
-    const rows = events.map(e => {
-        const leftPct = Math.min(100, Math.max(0, ((e.startTime - windowStart) / span) * 100));
-        const rawWidthPct = ((e.endTime - e.startTime) / span) * 100;
-        const widthPct = Math.min(100 - leftPct, Math.max(2, rawWidthPct));
-        const isLive = now >= e.startTime && now <= e.endTime;
-        const dateLabel = now < e.startTime
-            ? `Starts in ${bannerCountdown(e.startTime)}`
-            : `Ends in ${bannerCountdown(e.endTime)}`;
-        return `
-        <div class="event-row">
-            <div class="event-row-label" title="${e.name}">${e.name}</div>
-            <div class="event-row-track">
-                <div class="event-row-now" style="left: ${nowPct}%"></div>
-                <div class="event-row-bar ${isLive ? "event-row-bar-live" : "event-row-bar-upcoming"}" style="left: ${leftPct}%; width: ${widthPct}%"></div>
-            </div>
-            <div class="event-row-date">${dateLabel}</div>
-        </div>`;
-    }).join("");
-
-    return `
-    <div class="events-section">
-        <div class="banner-block-label events-title">Events</div>
-        ${rows}
+        <div class="banner-card-body">${body}</div>
     </div>`;
 }
 
@@ -604,11 +561,141 @@ async function renderBannersView() {
     }
 }
 
+// The calendar window always spans whole months, so the ruler's month
+// labels land on clean boundaries instead of starting mid-month.
+function computeCalendarWindow(events) {
+    const now = Date.now();
+    const rawStart = Math.min(now, ...events.map(e => e.startTime));
+    const rawEnd = Math.max(now, ...events.map(e => e.endTime));
+    const start = new Date(rawStart);
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(rawEnd);
+    end.setMonth(end.getMonth() + 1, 0);
+    end.setHours(23, 59, 59, 999);
+    return { start: start.getTime(), end: end.getTime() };
+}
+
+const calendarShortDate = (ts) => new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+// Month labels + weekly day ticks, sharing the exact same left/width % math
+// as the event rows below so everything lines up on one timeline.
+function renderCalendarRuler(windowStart, windowEnd) {
+    const span = windowEnd - windowStart;
+    const months = [];
+    let cursor = new Date(windowStart);
+    while (cursor.getTime() < windowEnd) {
+        const monthStart = new Date(cursor.getFullYear(), cursor.getMonth(), 1).getTime();
+        const monthEndExclusive = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1).getTime();
+        const segStart = Math.max(monthStart, windowStart);
+        const segEnd = Math.min(monthEndExclusive, windowEnd);
+        months.push({
+            label: new Date(monthStart).toLocaleDateString("en-US", { month: "long" }),
+            leftPct: ((segStart - windowStart) / span) * 100,
+            widthPct: ((segEnd - segStart) / span) * 100,
+        });
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+    }
+
+    const ticks = [];
+    let d = new Date(windowStart);
+    while (d.getTime() < windowEnd) {
+        ticks.push({ leftPct: ((d.getTime() - windowStart) / span) * 100, label: d.getDate() });
+        d = new Date(d);
+        d.setDate(d.getDate() + 7);
+    }
+
+    return `
+    <div class="calendar-ruler">
+        <div class="calendar-ruler-label"></div>
+        <div class="calendar-ruler-track">
+            ${months.map(m => `<div class="calendar-month" style="left: ${m.leftPct}%; width: ${m.widthPct}%">${m.label}</div>`).join("")}
+            ${ticks.map(t => `<div class="calendar-tick-mark" style="left: ${t.leftPct}%"><span class="calendar-tick-num">${t.label}</span></div>`).join("")}
+        </div>
+    </div>`;
+}
+
+// One row per event: a bar spanning its start-end range, with a small
+// dashed callout rising from each end showing the exact date - the "does
+// this land in early August or late July" question a bare progress bar
+// (what shipped before this) couldn't answer.
+// Below this bar width, separate start/end callout bubbles sit close
+// enough to overlap each other's text - merge into one combined-range
+// callout instead of two colliding ones.
+const CALENDAR_CALLOUT_MERGE_THRESHOLD = 20;
+
+function renderCalendarRow(e, windowStart, windowEnd) {
+    const span = windowEnd - windowStart;
+    const leftPct = Math.min(100, Math.max(0, ((e.startTime - windowStart) / span) * 100));
+    const rawWidthPct = ((e.endTime - e.startTime) / span) * 100;
+    const widthPct = Math.min(100 - leftPct, Math.max(2, rawWidthPct));
+    const now = Date.now();
+    const isLive = now >= e.startTime && now <= e.endTime;
+
+    const callouts = widthPct < CALENDAR_CALLOUT_MERGE_THRESHOLD
+        ? `<div class="calendar-callout calendar-callout-center"><span class="calendar-callout-date">${calendarShortDate(e.startTime)} &ndash; ${calendarShortDate(e.endTime)}</span></div>`
+        : `<div class="calendar-callout calendar-callout-start"><span class="calendar-callout-date">${calendarShortDate(e.startTime)}</span></div>
+           <div class="calendar-callout calendar-callout-end"><span class="calendar-callout-date">${calendarShortDate(e.endTime)}</span></div>`;
+
+    return `
+    <div class="calendar-row">
+        <div class="calendar-row-label" title="${e.name}">${e.name}</div>
+        <div class="calendar-row-track">
+            <div class="calendar-bar ${isLive ? "calendar-bar-live" : "calendar-bar-upcoming"}" style="left: ${leftPct}%; width: ${widthPct}%">
+                ${callouts}
+            </div>
+        </div>
+    </div>`;
+}
+
+function renderCalendarCard(target, result) {
+    let body;
+    if (result.error) {
+        body = `<div class="banner-empty">Couldn&rsquo;t load calendar &mdash; try again later.</div>`;
+    } else if (result.loading) {
+        body = `<div class="banner-empty">Loading&hellip;</div>`;
+    } else if (!result.events || result.events.length === 0) {
+        body = `<div class="banner-empty">No active events right now.</div>`;
+    } else {
+        const { start, end } = computeCalendarWindow(result.events);
+        const sorted = [...result.events].sort((a, b) => a.startTime - b.startTime);
+        body = renderCalendarRuler(start, end) + `<div class="calendar-rows">${sorted.map(e => renderCalendarRow(e, start, end)).join("")}</div>`;
+    }
+
+    return `
+    <div class="banner-game-card ${target.style}">
+        <div class="game-header">
+            <h2 class="game-title">${target.name}</h2>
+        </div>
+        <div class="banner-card-body">${body}</div>
+    </div>`;
+}
+
+async function renderCalendarView() {
+    const el = document.getElementById("calendar-view");
+    if (!el) return;
+
+    const target = BANNER_TARGETS.find(t => t.gid === state.activeGame);
+    if (!target) {
+        el.innerHTML = `<div class="banner-empty">No calendar data available for this game.</div>`;
+        return;
+    }
+
+    const cache = loadBannerCache();
+    el.innerHTML = renderCalendarCard(target, cache[target.gid] || { loading: true });
+
+    const result = await fetchBanners(target.gid);
+    if (state.appTab === "calendar" && state.activeGame === target.gid) {
+        el.innerHTML = renderCalendarCard(target, result);
+    }
+}
+
 window.setAppTab = (tab) => {
     state.appTab = tab;
     window.save();
     buildDashboard();
     if (tab === "banners") renderBannersView();
+    if (tab === "calendar") renderCalendarView();
 };
 
 const TYPE_LABELS = { d: "Daily", w: "Weekly", m: "Monthly", a: "Challenge" };
@@ -799,19 +886,23 @@ window.overrideRewardProgress = () => {
 function applyGlobalVisibility() {
     const onChecklist = state.appTab === "checklist";
     const onBanners = state.appTab === "banners";
+    const onCalendar = state.appTab === "calendar";
     const onSettings = state.appTab === "settings";
 
     document.getElementById("nav-checklist").classList.toggle("active", onChecklist);
     document.getElementById("nav-banners").classList.toggle("active", onBanners);
+    document.getElementById("nav-calendar").classList.toggle("active", onCalendar);
     document.getElementById("nav-settings").classList.toggle("active", onSettings);
 
     // The game switcher in the sidebar drives whichever view is active -
-    // Checklist and Banners each show only the selected game, so it stays
-    // visible for both. Settings isn't game-specific, so it's hidden there.
+    // Checklist, Banners and Calendar each show only the selected game, so
+    // it stays visible for all three. Settings isn't game-specific, so it's
+    // hidden there.
     document.getElementById("quick-nav").classList.toggle("d-none", onSettings);
     document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers || !onChecklist);
     document.getElementById("main-dashboard").classList.toggle("d-none", !onChecklist);
     document.getElementById("banners-view").classList.toggle("d-none", !onBanners);
+    document.getElementById("calendar-view").classList.toggle("d-none", !onCalendar);
     document.getElementById("settings-view").classList.toggle("d-none", !onSettings);
 }
 
@@ -840,6 +931,7 @@ window.setActiveGame = (gid) => {
     window.save();
     buildDashboard();
     if (state.appTab === "banners") renderBannersView();
+    if (state.appTab === "calendar") renderCalendarView();
 };
 
 window.setActiveType = (type) => {

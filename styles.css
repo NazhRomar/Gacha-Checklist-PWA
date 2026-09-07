@@ -1083,76 +1083,132 @@ body {
     font-size: 0.85rem;
 }
 
-/* --- Events mini-Gantt (Banners tab) --- */
-.events-section {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border-color);
-}
-
-.events-title {
-    display: block;
-    margin-bottom: 14px;
-}
-
-.event-row {
+/* --- Calendar tab: month ruler + per-event timeline rows --- */
+.calendar-ruler {
     display: grid;
-    grid-template-columns: 110px 1fr auto;
-    align-items: center;
+    grid-template-columns: 100px 1fr;
     gap: 10px;
-    margin-bottom: 12px;
+    margin-bottom: 18px;
 }
 
-.event-row:last-child {
-    margin-bottom: 0;
+.calendar-ruler-track {
+    position: relative;
+    height: 40px;
+    border-bottom: 1px solid var(--border-color);
 }
 
-.event-row-label {
-    font-size: 0.78rem;
+.calendar-month {
+    position: absolute;
+    top: 0;
+    padding-left: 6px;
+    border-left: 1px solid var(--border-color);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--game-accent);
+    white-space: nowrap;
+}
+
+.calendar-tick-mark {
+    position: absolute;
+    bottom: 0;
+    width: 1px;
+    height: 7px;
+    background: var(--border-color-strong);
+}
+
+.calendar-tick-num {
+    position: absolute;
+    bottom: 11px;
+    left: 0;
+    transform: translateX(-50%);
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.6rem;
+    color: var(--text-tertiary);
+}
+
+.calendar-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.calendar-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    align-items: end;
+    gap: 10px;
+}
+
+.calendar-row-label {
+    font-size: 0.76rem;
     font-weight: 600;
     color: #efefef;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    padding-bottom: 5px;
 }
 
-.event-row-track {
+.calendar-row-track {
     position: relative;
-    height: 8px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    overflow: hidden;
+    height: 48px;
 }
 
-.event-row-bar {
+.calendar-bar {
     position: absolute;
-    top: 0;
-    height: 100%;
+    bottom: 0;
+    height: 10px;
     border-radius: 999px;
 }
 
-.event-row-bar-live {
+.calendar-bar-live {
     background: var(--game-accent);
     box-shadow: 0 0 6px color-mix(in srgb, var(--game-accent) 60%, transparent);
 }
 
-.event-row-bar-upcoming {
+.calendar-bar-upcoming {
     background: #facc15;
-    opacity: 0.65;
+    opacity: 0.75;
 }
 
-.event-row-now {
+.calendar-callout {
     position: absolute;
-    top: -3px;
-    bottom: -3px;
-    width: 2px;
-    background: #fff;
-    z-index: 1;
+    bottom: 16px;
+    transform: translateX(-50%);
 }
 
-.event-row-date {
+.calendar-callout-start {
+    left: 0;
+}
+
+.calendar-callout-end {
+    left: 100%;
+}
+
+.calendar-callout-center {
+    left: 50%;
+}
+
+.calendar-callout::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: 0;
+    height: 16px;
+    border-left: 1.5px dashed rgba(255, 255, 255, 0.4);
+}
+
+.calendar-callout-date {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
     font-family: "JetBrains Mono", monospace;
-    font-size: 0.64rem;
+    font-size: 0.6rem;
+    font-weight: 700;
     color: var(--text-secondary);
     white-space: nowrap;
 }
@@ -1323,6 +1379,21 @@ footer {
 
     .settings-status {
         grid-template-columns: 1fr;
+    }
+
+    .calendar-ruler,
+    .calendar-row {
+        grid-template-columns: 72px 1fr;
+        gap: 6px;
+    }
+
+    .calendar-row-label {
+        font-size: 0.7rem;
+    }
+
+    .calendar-callout-date {
+        font-size: 0.56rem;
+        padding: 1px 5px;
     }
 
     .quick-pill-icon {
