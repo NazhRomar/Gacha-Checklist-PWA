@@ -93,7 +93,6 @@ const DEFAULT_STATE = {
     collapsed: [],
     hideMonthly: false,
     hideTimers: false,
-    hideFooter: false,
     activeGame: null,
     activeType: "d",
     appTab: "checklist",
@@ -513,25 +512,6 @@ let gwDraft = null;
 // so it survives the innerHTML rebuild that happens on every re-render.
 let menuTab = "display";
 
-function closeVisibilityMenu() {
-    const toggle = document.querySelector('[data-bs-toggle="dropdown"]');
-    const inst = toggle && bootstrap.Dropdown.getInstance(toggle);
-    if (inst) inst.hide();
-}
-
-// The Settings toggle lives inside the fixed-position bottom nav. Popper's
-// default "absolute" strategy positions the menu relative to that fixed
-// ancestor's own box instead of the viewport, which throws off the dropup
-// placement math and lets the menu render below the fold. "fixed" strategy
-// positions it relative to the viewport instead, like the toggle itself.
-function initSettingsDropdown() {
-    const toggle = document.querySelector('[data-bs-toggle="dropdown"]');
-    if (!toggle) return;
-    new bootstrap.Dropdown(toggle, {
-        popperConfig: (defaultConfig) => ({ ...defaultConfig, strategy: "fixed" }),
-    });
-}
-
 function runWeeklyStreakCycleCheck() {
     let didReset = false;
     while (Date.now() >= state.gwCycleEnd) {
@@ -549,8 +529,13 @@ window.save = (isReset = false) => {
     state.upTs = Date.now();
     if (isReset) state.rs = new Date().toLocaleString();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    document.getElementById("last-updated").innerText = state.up || "-";
-    document.getElementById("last-reset").innerText = state.rs || "-";
+    // These live on the Settings page now, so they only exist in the DOM
+    // while that tab is active - the next render there picks up the fresh
+    // state.up/state.rs anyway, this is just to update it live if already open.
+    const updatedEl = document.getElementById("last-updated");
+    const resetEl = document.getElementById("last-reset");
+    if (updatedEl) updatedEl.innerText = state.up || "-";
+    if (resetEl) resetEl.innerText = state.rs || "-";
     scheduleSyncPush();
 };
 
@@ -559,7 +544,10 @@ const GW_CYCLE_STATES = ["done", "missed", null];
 window.startWeeklyProgressEdit = () => {
     gwEditing = true;
     gwDraft = [...state.gwDays];
-    closeVisibilityMenu();
+    // The editor lives inside Genshin's checklist card, not the Settings
+    // page it's launched from - jump there so it's actually visible.
+    state.appTab = "checklist";
+    state.activeGame = "gi";
     buildDashboard();
 };
 
@@ -593,18 +581,21 @@ window.overrideRewardProgress = () => {
 };
 
 function applyGlobalVisibility() {
+    const onChecklist = state.appTab === "checklist";
     const onBanners = state.appTab === "banners";
+    const onSettings = state.appTab === "settings";
 
-    document.getElementById("nav-checklist").classList.toggle("active", !onBanners);
+    document.getElementById("nav-checklist").classList.toggle("active", onChecklist);
     document.getElementById("nav-banners").classList.toggle("active", onBanners);
+    document.getElementById("nav-settings").classList.toggle("active", onSettings);
 
     // The game switcher in the sidebar drives whichever view is active -
     // Checklist and Banners each show only the selected game, so it stays
     // visible either way.
-    document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers || onBanners);
-    document.getElementById("main-dashboard").classList.toggle("d-none", onBanners);
+    document.getElementById("sub-nav").classList.toggle("d-none", state.hideTimers || !onChecklist);
+    document.getElementById("main-dashboard").classList.toggle("d-none", !onChecklist);
     document.getElementById("banners-view").classList.toggle("d-none", !onBanners);
-    document.getElementById("app-footer").classList.toggle("d-none", state.hideFooter);
+    document.getElementById("settings-view").classList.toggle("d-none", !onSettings);
 }
 
 function taskCounts(g) {
@@ -947,9 +938,6 @@ function renderMenuDisplayTab() {
     </a></li>
     <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('timers'); return false;">
         <input type="checkbox" class="form-check-input mt-0" ${state.hideTimers ? "checked" : ""}> Hide Reset Timers
-    </a></li>
-    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('footer'); return false;">
-        <input type="checkbox" class="form-check-input mt-0" ${state.hideFooter ? "checked" : ""}> Hide Footer
     </a></li><hr class="dropdown-divider"><li class="dropdown-header">Sync</li>`;
 
     if (syncCfg.enabled && syncCfg.workerUrl && syncCfg.pin) {
@@ -1020,7 +1008,7 @@ function updateMenu() {
         : menuTab === "items" ? renderMenuItemsTab()
         : renderMenuDisplayTab();
 
-    document.getElementById("visibility-menu").innerHTML = tabsHtml + body;
+    document.getElementById("settings-body").innerHTML = tabsHtml + body;
 }
 
 window.toggleConfig = (type, id) => {
@@ -1028,8 +1016,6 @@ window.toggleConfig = (type, id) => {
         state.hideMonthly = !state.hideMonthly;
     } else if (type === 'timers') {
         state.hideTimers = !state.hideTimers;
-    } else if (type === 'footer') {
-        state.hideFooter = !state.hideFooter;
     } else if (type === 'weeklystreak') {
         state.gwEnabled = !state.gwEnabled;
     } else if (type === 'abyss') {
@@ -1138,7 +1124,6 @@ if (state.lastTheater < currentMonthlyReset.getTime()) {
 runWeeklyStreakCycleCheck();
 
 buildDashboard();
-initSettingsDropdown();
 if (state.appTab === "banners") renderBannersView();
 setInterval(updateLiveText, 1000);
 startSyncLoop();
