@@ -575,26 +575,6 @@ function computeCalendarWindow(events) {
     return { start: start.getTime(), end: end.getTime() };
 }
 
-// Events that end on the same calendar day tend to pile up (a season's
-// worth of side content all wrapping up together) and each gets its own
-// near-identical bar - collapse each same-end-day group into a single row
-// spanning from the earliest start to that shared end.
-function mergeCalendarEventsByEndDay(events) {
-    const groups = new Map();
-    events.forEach(e => {
-        const endDay = new Date(e.endTime);
-        endDay.setHours(0, 0, 0, 0);
-        const key = endDay.getTime();
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(e);
-    });
-    return [...groups.values()].map(group => group.length === 1 ? group[0] : {
-        name: group.map(g => g.name).join(" / "),
-        startTime: Math.min(...group.map(g => g.startTime)),
-        endTime: Math.max(...group.map(g => g.endTime)),
-    });
-}
-
 // Every unique calendar day an event starts or ends on, in this window -
 // the ruler only marks days that actually matter instead of a generic
 // weekly grid, matching the in-game event calendar's look.
@@ -629,9 +609,11 @@ function staggerCalendarTicks(days) {
     });
 }
 
-// Month labels + one tick per event start/end day, sharing the exact same
-// left % math as the dashed lines and bars below so everything lines up.
-function renderCalendarRuler(windowStart, windowEnd, days) {
+// One entry per month that overlaps the window, each clipped to the
+// window's own bounds - shared by the ruler (month labels) and the lines
+// overlay (a dashed marker at each month's start) so both agree on where
+// a month begins.
+function calendarMonthSegments(windowStart, windowEnd) {
     const span = windowEnd - windowStart;
     const months = [];
     let cursor = new Date(windowStart);
@@ -647,7 +629,12 @@ function renderCalendarRuler(windowStart, windowEnd, days) {
         });
         cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
+    return months;
+}
 
+// Month labels + one tick per event start/end day, sharing the exact same
+// left % math as the dashed lines and bars below so everything lines up.
+function renderCalendarRuler(months, days) {
     const ticks = staggerCalendarTicks(days);
 
     return `
@@ -657,18 +644,22 @@ function renderCalendarRuler(windowStart, windowEnd, days) {
     </div>`;
 }
 
-// A dashed vertical line per event start/end day, spanning the full chart
-// height from the ruler down through every row - the "which tick on the
-// ruler is this bar's edge" line the reference design calls for. The
-// "today" line uses the same treatment but bolder, so it doesn't get lost
-// among the day lines it sits alongside.
-function renderCalendarLines(days, windowStart, windowEnd) {
+// A dashed vertical line per event start/end day (plus each month's
+// start), spanning the full chart height from the ruler down through
+// every row - the "which tick on the ruler is this bar's edge" line the
+// reference design calls for. The "today" line uses the same treatment
+// but bolder, so it doesn't get lost among the day lines it sits
+// alongside. The first month segment always starts at the chart's own
+// left edge (leftPct 0), so it's skipped - there's nothing to mark there.
+function renderCalendarLines(days, months, windowStart, windowEnd) {
     const span = windowEnd - windowStart;
     const now = Date.now();
     const todayLine = now >= windowStart && now <= windowEnd
         ? `<div class="calendar-line calendar-line-today" style="left: ${((now - windowStart) / span) * 100}%"></div>`
         : "";
-    return `<div class="calendar-lines">${days.map(d => `<div class="calendar-line" style="left: ${d.leftPct}%"></div>`).join("")}${todayLine}</div>`;
+    const dayLines = days.map(d => `<div class="calendar-line" style="left: ${d.leftPct}%"></div>`).join("");
+    const monthLines = months.slice(1).map(m => `<div class="calendar-line" style="left: ${m.leftPct}%"></div>`).join("");
+    return `<div class="calendar-lines">${dayLines}${monthLines}${todayLine}</div>`;
 }
 
 function renderCalendarRow(e, windowStart, windowEnd) {
@@ -713,19 +704,19 @@ function renderCalendarCard(target, result) {
     } else {
         const { start, end } = computeCalendarWindow(result.events);
         const sorted = [...result.events].sort((a, b) => a.startTime - b.startTime);
-        const merged = mergeCalendarEventsByEndDay(sorted).sort((a, b) => a.startTime - b.startTime);
-        const days = calendarEventDays(merged, start, end);
+        const days = calendarEventDays(sorted, start, end);
+        const months = calendarMonthSegments(start, end);
         const trackWidthPx = Math.round(((end - start) / 86400000) * CALENDAR_PX_PER_DAY);
         const chartWidthPx = CALENDAR_LABEL_WIDTH_PX + trackWidthPx;
         body = `
         <div class="calendar-scroll">
             <div class="calendar-chart" style="width: ${chartWidthPx}px; min-width: 100%;">
-                ${renderCalendarLines(days, start, end)}
+                ${renderCalendarLines(days, months, start, end)}
                 <div class="calendar-ruler">
                     <div class="calendar-ruler-spacer"></div>
-                    ${renderCalendarRuler(start, end, days)}
+                    ${renderCalendarRuler(months, days)}
                 </div>
-                <div class="calendar-rows">${merged.map(e => renderCalendarRow(e, start, end)).join("")}</div>
+                <div class="calendar-rows">${sorted.map(e => renderCalendarRow(e, start, end)).join("")}</div>
             </div>
         </div>`;
     }

@@ -22,6 +22,32 @@
     box-sizing: border-box;
 }
 
+/* Thin, low-contrast scrollbars everywhere (calendar's horizontal
+   scroll, sidebar overflow, etc.) instead of the browser's bulky
+   default - present when needed, but not something that draws the eye. */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
+
 html, body {
     min-height: 100vh;
 }
@@ -1102,9 +1128,15 @@ body {
 
 #calendar-view .banner-card-body {
     flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
 }
 
+/* Stretched to fill the card's min-height rather than hugging the
+   chart's own content height, so the scrollbar sits at the bottom of
+   the container instead of right under the last row. */
 .calendar-scroll {
+    flex: 1 1 auto;
     overflow-x: auto;
 }
 
@@ -1200,15 +1232,12 @@ body {
     left: 0;
     flex: 0 0 170px;
     padding-right: 10px;
-    background: var(--card-bg);
     border-right: 1px solid var(--border-color);
     z-index: 2;
     font-size: 0.76rem;
     font-weight: 600;
     color: #efefef;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
 }
 
 .calendar-row-track {
