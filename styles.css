@@ -1084,6 +1084,27 @@ body {
 }
 
 /* --- Calendar tab: month ruler + per-event timeline rows --- */
+.calendar-chart {
+    position: relative;
+}
+
+.calendar-lines {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 110px;
+    right: 0;
+    pointer-events: none;
+}
+
+.calendar-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-left: 1.5px dashed rgba(255, 255, 255, 0.25);
+}
+
 .calendar-ruler {
     display: grid;
     grid-template-columns: 100px 1fr;
@@ -1171,46 +1192,6 @@ body {
 .calendar-bar-upcoming {
     background: #facc15;
     opacity: 0.75;
-}
-
-.calendar-callout {
-    position: absolute;
-    bottom: 16px;
-    transform: translateX(-50%);
-}
-
-.calendar-callout-start {
-    left: 0;
-}
-
-.calendar-callout-end {
-    left: 100%;
-}
-
-.calendar-callout-center {
-    left: 50%;
-}
-
-.calendar-callout::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    width: 0;
-    height: 16px;
-    border-left: 1.5px dashed rgba(255, 255, 255, 0.4);
-}
-
-.calendar-callout-date {
-    display: inline-block;
-    padding: 2px 7px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    font-family: "JetBrains Mono", monospace;
-    font-size: 0.6rem;
-    font-weight: 700;
-    color: var(--text-secondary);
-    white-space: nowrap;
 }
 
 /* --- Footer --- */
@@ -1387,13 +1368,12 @@ footer {
         gap: 6px;
     }
 
-    .calendar-row-label {
-        font-size: 0.7rem;
+    .calendar-lines {
+        left: 78px;
     }
 
-    .calendar-callout-date {
-        font-size: 0.56rem;
-        padding: 1px 5px;
+    .calendar-row-label {
+        font-size: 0.7rem;
     }
 
     .quick-pill-icon {

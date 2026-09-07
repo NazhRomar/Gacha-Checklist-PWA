@@ -576,11 +576,28 @@ function computeCalendarWindow(events) {
     return { start: start.getTime(), end: end.getTime() };
 }
 
-const calendarShortDate = (ts) => new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+// Every unique calendar day an event starts or ends on, in this window -
+// the ruler only marks days that actually matter instead of a generic
+// weekly grid, matching the in-game event calendar's look.
+function calendarEventDays(events, windowStart, windowEnd) {
+    const span = windowEnd - windowStart;
+    const seen = new Map();
+    events.forEach(e => {
+        [e.startTime, e.endTime].forEach(time => {
+            const dayStart = new Date(time);
+            dayStart.setHours(0, 0, 0, 0);
+            const key = dayStart.getTime();
+            if (!seen.has(key)) {
+                seen.set(key, { time, leftPct: ((time - windowStart) / span) * 100, label: dayStart.getDate() });
+            }
+        });
+    });
+    return [...seen.values()].sort((a, b) => a.time - b.time);
+}
 
-// Month labels + weekly day ticks, sharing the exact same left/width % math
-// as the event rows below so everything lines up on one timeline.
-function renderCalendarRuler(windowStart, windowEnd) {
+// Month labels + one tick per event start/end day, sharing the exact same
+// left % math as the dashed lines and bars below so everything lines up.
+function renderCalendarRuler(windowStart, windowEnd, days) {
     const span = windowEnd - windowStart;
     const months = [];
     let cursor = new Date(windowStart);
@@ -597,32 +614,22 @@ function renderCalendarRuler(windowStart, windowEnd) {
         cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
     }
 
-    const ticks = [];
-    let d = new Date(windowStart);
-    while (d.getTime() < windowEnd) {
-        ticks.push({ leftPct: ((d.getTime() - windowStart) / span) * 100, label: d.getDate() });
-        d = new Date(d);
-        d.setDate(d.getDate() + 7);
-    }
-
     return `
     <div class="calendar-ruler">
         <div class="calendar-ruler-label"></div>
         <div class="calendar-ruler-track">
             ${months.map(m => `<div class="calendar-month" style="left: ${m.leftPct}%; width: ${m.widthPct}%">${m.label}</div>`).join("")}
-            ${ticks.map(t => `<div class="calendar-tick-mark" style="left: ${t.leftPct}%"><span class="calendar-tick-num">${t.label}</span></div>`).join("")}
+            ${days.map(d => `<div class="calendar-tick-mark" style="left: ${d.leftPct}%"><span class="calendar-tick-num">${d.label}</span></div>`).join("")}
         </div>
     </div>`;
 }
 
-// One row per event: a bar spanning its start-end range, with a small
-// dashed callout rising from each end showing the exact date - the "does
-// this land in early August or late July" question a bare progress bar
-// (what shipped before this) couldn't answer.
-// Below this bar width, separate start/end callout bubbles sit close
-// enough to overlap each other's text - merge into one combined-range
-// callout instead of two colliding ones.
-const CALENDAR_CALLOUT_MERGE_THRESHOLD = 20;
+// A dashed vertical line per event start/end day, spanning the full chart
+// height from the ruler down through every row - the "which tick on the
+// ruler is this bar's edge" line the reference design calls for.
+function renderCalendarLines(days) {
+    return `<div class="calendar-lines">${days.map(d => `<div class="calendar-line" style="left: ${d.leftPct}%"></div>`).join("")}</div>`;
+}
 
 function renderCalendarRow(e, windowStart, windowEnd) {
     const span = windowEnd - windowStart;
@@ -632,18 +639,11 @@ function renderCalendarRow(e, windowStart, windowEnd) {
     const now = Date.now();
     const isLive = now >= e.startTime && now <= e.endTime;
 
-    const callouts = widthPct < CALENDAR_CALLOUT_MERGE_THRESHOLD
-        ? `<div class="calendar-callout calendar-callout-center"><span class="calendar-callout-date">${calendarShortDate(e.startTime)} &ndash; ${calendarShortDate(e.endTime)}</span></div>`
-        : `<div class="calendar-callout calendar-callout-start"><span class="calendar-callout-date">${calendarShortDate(e.startTime)}</span></div>
-           <div class="calendar-callout calendar-callout-end"><span class="calendar-callout-date">${calendarShortDate(e.endTime)}</span></div>`;
-
     return `
     <div class="calendar-row">
         <div class="calendar-row-label" title="${e.name}">${e.name}</div>
         <div class="calendar-row-track">
-            <div class="calendar-bar ${isLive ? "calendar-bar-live" : "calendar-bar-upcoming"}" style="left: ${leftPct}%; width: ${widthPct}%">
-                ${callouts}
-            </div>
+            <div class="calendar-bar ${isLive ? "calendar-bar-live" : "calendar-bar-upcoming"}" style="left: ${leftPct}%; width: ${widthPct}%"></div>
         </div>
     </div>`;
 }
@@ -659,7 +659,13 @@ function renderCalendarCard(target, result) {
     } else {
         const { start, end } = computeCalendarWindow(result.events);
         const sorted = [...result.events].sort((a, b) => a.startTime - b.startTime);
-        body = renderCalendarRuler(start, end) + `<div class="calendar-rows">${sorted.map(e => renderCalendarRow(e, start, end)).join("")}</div>`;
+        const days = calendarEventDays(sorted, start, end);
+        body = `
+        <div class="calendar-chart">
+            ${renderCalendarLines(days)}
+            ${renderCalendarRuler(start, end, days)}
+            <div class="calendar-rows">${sorted.map(e => renderCalendarRow(e, start, end)).join("")}</div>
+        </div>`;
     }
 
     return `
@@ -908,7 +914,7 @@ function applyGlobalVisibility() {
 
 function taskCounts(g) {
     let done = 0, total = 0;
-    const lists = [["d", g.daily], ["w", g.weekly], ...(state.hideMonthly ? [] : [["m", g.monthly]]), ...(g.abyss && state.challengeEnabled ? [["a", g.abyss]] : [])];
+    const lists = [["d", g.daily], ["w", g.weekly], ...(state.hideMonthly ? [] : [["m", g.monthly]])];
     lists.forEach(([type, list]) => {
         list.forEach((t, i) => {
             const id = `${g.id}-${type}-${i}`;
