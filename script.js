@@ -323,7 +323,7 @@ const BANNER_CACHE_MAX_AGE = 15 * 60 * 1000;
 // more minutes after a code update goes live, since the cache is still
 // "fresh" from the code's perspective - a version mismatch here forces an
 // immediate re-fetch instead of waiting on that window to expire.
-const BANNER_CACHE_VERSION = 2;
+const BANNER_CACHE_VERSION = 3;
 
 function loadBannerCache() {
     try {
@@ -387,6 +387,21 @@ function normalizeBanners(gameKey, raw) {
             endTime: b.end_time,
         };
     });
+}
+
+// The same calendar response also lists ordinary limited-time events (side
+// activities, login bonuses, etc.) with real start/end times - shown as a
+// mini Gantt-style timeline at the bottom of the Banners card. A couple of
+// entries come back with start_time/end_time both 0 (looks like a data
+// glitch on the API's end, not a real perpetual event) - dropped here.
+function normalizeEvents(raw) {
+    return (raw.events || [])
+        .filter(e => e.end_time > 0)
+        .map(e => ({
+            name: e.name,
+            startTime: e.start_time * 1000,
+            endTime: e.end_time * 1000,
+        }));
 }
 
 // The same calendar response also lists live-service "challenges" (Spiral
@@ -462,13 +477,13 @@ async function fetchBanners(gameKey, force = false) {
         const res = await fetch(BANNER_ENDPOINTS[gameKey]);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const raw = await res.json();
-        const updated = { banners: normalizeBanners(gameKey, raw), challenges: normalizeChallenges(gameKey, raw), fetchedAt: Date.now(), error: null };
+        const updated = { banners: normalizeBanners(gameKey, raw), challenges: normalizeChallenges(gameKey, raw), events: normalizeEvents(raw), fetchedAt: Date.now(), error: null };
         reconcileChallengeChecks(gameKey, updated.challenges);
         cache[gameKey] = updated;
         saveBannerCache(cache);
         return updated;
     } catch (e) {
-        return entry || { banners: [], challenges: [], fetchedAt: 0, error: "load-failed" };
+        return entry || { banners: [], challenges: [], events: [], fetchedAt: 0, error: "load-failed" };
     }
 }
 
@@ -513,12 +528,55 @@ function renderBannerCard(target, result) {
                 </div>
             </div>`).join("") + `</div>`;
 
+    const eventsHtml = renderEventsSection(result.events);
+
     return `
     <div class="banner-game-card ${target.style}">
         <div class="game-header">
             <h2 class="game-title">${target.name}</h2>
         </div>
-        <div class="banner-card-body">${body}</div>
+        <div class="banner-card-body">${body}${eventsHtml}</div>
+    </div>`;
+}
+
+// A full date-axis Gantt chart needs a shared calendar header and usually a
+// horizontal scroll to fit more than a couple of weeks - awkward on a
+// narrow phone. This gets the same core value (seeing which events overlap)
+// without either: every event gets one row, sized/positioned as a bar
+// within a shared time window, so overlapping events visually line up -
+// just without a literal date ruler or the need to scroll.
+function renderEventsSection(events) {
+    if (!events || events.length === 0) return "";
+
+    const now = Date.now();
+    const windowStart = Math.min(now, ...events.map(e => e.startTime));
+    const windowEnd = Math.max(now, ...events.map(e => e.endTime));
+    const span = Math.max(1, windowEnd - windowStart);
+    const nowPct = Math.min(100, Math.max(0, ((now - windowStart) / span) * 100));
+
+    const rows = events.map(e => {
+        const leftPct = Math.min(100, Math.max(0, ((e.startTime - windowStart) / span) * 100));
+        const rawWidthPct = ((e.endTime - e.startTime) / span) * 100;
+        const widthPct = Math.min(100 - leftPct, Math.max(2, rawWidthPct));
+        const isLive = now >= e.startTime && now <= e.endTime;
+        const dateLabel = now < e.startTime
+            ? `Starts in ${bannerCountdown(e.startTime)}`
+            : `Ends in ${bannerCountdown(e.endTime)}`;
+        return `
+        <div class="event-row">
+            <div class="event-row-label" title="${e.name}">${e.name}</div>
+            <div class="event-row-track">
+                <div class="event-row-now" style="left: ${nowPct}%"></div>
+                <div class="event-row-bar ${isLive ? "event-row-bar-live" : "event-row-bar-upcoming"}" style="left: ${leftPct}%; width: ${widthPct}%"></div>
+            </div>
+            <div class="event-row-date">${dateLabel}</div>
+        </div>`;
+    }).join("");
+
+    return `
+    <div class="events-section">
+        <div class="banner-block-label events-title">Events</div>
+        ${rows}
     </div>`;
 }
 

@@ -1083,6 +1083,80 @@ body {
     font-size: 0.85rem;
 }
 
+/* --- Events mini-Gantt (Banners tab) --- */
+.events-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
+}
+
+.events-title {
+    display: block;
+    margin-bottom: 14px;
+}
+
+.event-row {
+    display: grid;
+    grid-template-columns: 110px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.event-row:last-child {
+    margin-bottom: 0;
+}
+
+.event-row-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #efefef;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.event-row-track {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+
+.event-row-bar {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 999px;
+}
+
+.event-row-bar-live {
+    background: var(--game-accent);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--game-accent) 60%, transparent);
+}
+
+.event-row-bar-upcoming {
+    background: #facc15;
+    opacity: 0.65;
+}
+
+.event-row-now {
+    position: absolute;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    background: #fff;
+    z-index: 1;
+}
+
+.event-row-date {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.64rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
 /* --- Footer --- */
 footer {
     flex-shrink: 0;
