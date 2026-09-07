@@ -102,6 +102,11 @@ const DEFAULT_STATE = {
     lastAbyss: 0,
     lastTheater: 0,
     challengeEnabled: true,
+    // Tracks the start time we last saw for each HSR/ZZZ challenge, keyed
+    // by "<gid>-a-<type_name>" - used to notice when a new cycle begins and
+    // clear that one checkbox, since there's no fixed reset cadence for
+    // live-service content with no data.js entry.
+    challengeStarts: {},
     gwEnabled: true,
     gwDays: [null, null, null, null, null, null, null],
     gwPoints: 0,
@@ -395,6 +400,7 @@ const HSR_CHALLENGE_TYPE_NAMES = {
 
 function normalizeChallenges(gameKey, raw) {
     const seen = {};
+    const keyCount = {};
     return (raw.challenges || []).map(c => {
         let label = c.name;
         if (gameKey === "hsr") {
@@ -402,12 +408,39 @@ function normalizeChallenges(gameKey, raw) {
             seen[base] = (seen[base] || 0) + 1;
             label = seen[base] > 1 ? `${base} ${seen[base]}` : base;
         }
+        // `type_name` (ZZZ's is already a stable slug like "deadly_assault")
+        // is a durable identity across cycles, unlike the specific rotating
+        // title - lets HSR/ZZZ challenges be checkable despite their name
+        // changing every cycle. Duplicates (HSR's two Pure Fiction phases)
+        // get their own suffixed key so they don't share one checkbox.
+        const rawKey = c.type_name || c.name;
+        keyCount[rawKey] = (keyCount[rawKey] || 0) + 1;
+        const key = keyCount[rawKey] > 1 ? `${rawKey}-${keyCount[rawKey]}` : rawKey;
         return {
             name: label,
+            key,
             startTime: c.start_time * 1000,
             endTime: c.end_time ? c.end_time * 1000 : null,
         };
     });
+}
+
+// HSR/ZZZ challenges have no fixed data.js entry to key a reset cadence
+// off of (unlike GI's Abyss/Theater), so instead this notices when a
+// challenge's own start time changes - meaning a new cycle began - and
+// clears that specific checkbox then, rather than on any calendar cadence.
+function reconcileChallengeChecks(gid, challenges) {
+    if (gid === "gi") return; // GI's Abyss/Theater use their own reset checks
+    let changed = false;
+    challenges.forEach(c => {
+        const key = `${gid}-a-${c.key}`;
+        if (state.challengeStarts[key] !== c.startTime) {
+            delete state.checked[key];
+            state.challengeStarts[key] = c.startTime;
+            changed = true;
+        }
+    });
+    if (changed) window.save();
 }
 
 async function fetchBanners(gameKey, force = false) {
@@ -421,6 +454,7 @@ async function fetchBanners(gameKey, force = false) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const raw = await res.json();
         const updated = { banners: normalizeBanners(gameKey, raw), challenges: normalizeChallenges(gameKey, raw), fetchedAt: Date.now(), error: null };
+        reconcileChallengeChecks(gameKey, updated.challenges);
         cache[gameKey] = updated;
         saveBannerCache(cache);
         return updated;
@@ -579,13 +613,15 @@ function renderChallengeColumn(g) {
         }).join("");
     }
 
-    // HSR/ZZZ: read-only, straight from whatever's currently live.
+    // HSR/ZZZ: sourced straight from whatever's currently live, but still
+    // checkable - reconcileChallengeChecks() (run whenever fresh data comes
+    // in) clears each one's checkbox as soon as its cycle actually changes.
     const entry = loadBannerCache()[g.id];
     const challenges = (entry && entry.challenges) || [];
     if (challenges.length === 0) {
         return `<div class="banner-empty">No active challenges right now.</div>`;
     }
-    return challenges.map(c => renderChallengeRow(c.name, getChallengeStatus(g.id, c.name), null)).join("");
+    return challenges.map(c => renderChallengeRow(c.name, getChallengeStatus(g.id, c.name), `${g.id}-a-${c.key}`)).join("");
 }
 
 // ZZZ's standalone "Login" task and the "Login" entry inside Errands' sub-
