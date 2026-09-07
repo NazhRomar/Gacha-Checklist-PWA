@@ -1181,11 +1181,18 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
-.calendar-month {
+.calendar-month-wrap {
     position: absolute;
     top: 0;
-    padding-left: 6px;
+    bottom: 0;
     border-left: 1px solid var(--border-color);
+}
+
+.calendar-month {
+    position: sticky;
+    left: 170px;
+    width: max-content;
+    padding-left: 6px;
     font-size: 0.68rem;
     font-weight: 800;
     letter-spacing: 1px;
@@ -1210,10 +1217,6 @@ body {
     font-family: "JetBrains Mono", monospace;
     font-size: 0.6rem;
     color: var(--text-tertiary);
-}
-
-.calendar-tick-num-lower {
-    bottom: -9px;
 }
 
 .calendar-rows {

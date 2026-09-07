@@ -594,21 +594,6 @@ function calendarEventDays(events, windowStart, windowEnd) {
     return [...seen.values()].sort((a, b) => a.time - b.time);
 }
 
-// Adjacent event days can land close enough together that their tick
-// numbers touch and blur into one another - alternate the crowded ones
-// onto a lower baseline so every number stays on its own line.
-const CALENDAR_TICK_MIN_GAP_PCT = 4;
-
-function staggerCalendarTicks(days) {
-    let prevLeftPct = -Infinity;
-    let lower = false;
-    return days.map(d => {
-        lower = (d.leftPct - prevLeftPct) < CALENDAR_TICK_MIN_GAP_PCT ? !lower : false;
-        prevLeftPct = d.leftPct;
-        return { ...d, lower };
-    });
-}
-
 // One entry per month that overlaps the window, each clipped to the
 // window's own bounds - shared by the ruler (month labels) and the lines
 // overlay (a dashed marker at each month's start) so both agree on where
@@ -634,13 +619,19 @@ function calendarMonthSegments(windowStart, windowEnd) {
 
 // Month labels + one tick per event start/end day, sharing the exact same
 // left % math as the dashed lines and bars below so everything lines up.
+// Each label is wrapped in a fixed-position segment spanning its own
+// month's dates, with a sticky inner label - so "SEPTEMBER" stays
+// pinned just past the row-label column while any part of September is
+// still in view, instead of scrolling away the moment its segment's own
+// start has passed.
 function renderCalendarRuler(months, days) {
-    const ticks = staggerCalendarTicks(days);
-
     return `
     <div class="calendar-ruler-track">
-        ${months.map(m => `<div class="calendar-month" style="left: ${m.leftPct}%; width: ${m.widthPct}%">${m.label}</div>`).join("")}
-        ${ticks.map(d => `<div class="calendar-tick-mark" style="left: ${d.leftPct}%"><span class="calendar-tick-num${d.lower ? " calendar-tick-num-lower" : ""}">${d.label}</span></div>`).join("")}
+        ${months.map(m => `
+            <div class="calendar-month-wrap" style="left: ${m.leftPct}%; width: ${m.widthPct}%">
+                <div class="calendar-month">${m.label}</div>
+            </div>`).join("")}
+        ${days.map(d => `<div class="calendar-tick-mark" style="left: ${d.leftPct}%"><span class="calendar-tick-num">${d.label}</span></div>`).join("")}
     </div>`;
 }
 
