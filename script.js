@@ -95,6 +95,7 @@ const DEFAULT_STATE = {
     hideTimers: false,
     activeGame: null,
     activeType: "d",
+    activeAbyssIdx: null,
     appTab: "checklist",
     lastD: 0,
     lastW: 0,
@@ -375,6 +376,19 @@ function normalizeBanners(gameKey, raw) {
     });
 }
 
+// The same calendar response also lists live-service "challenges" (Spiral
+// Abyss, Imaginarium Theater, Pure Fiction, Shiyu Defense, etc.) with real
+// start/end times - used by the Abyss tab below so it doesn't have to guess
+// reset cadences. Kept generic (name/startTime/endTime only) since the
+// shape is consistent across all three games.
+function normalizeChallenges(raw) {
+    return (raw.challenges || []).map(c => ({
+        name: c.name,
+        startTime: c.start_time * 1000,
+        endTime: c.end_time ? c.end_time * 1000 : null,
+    }));
+}
+
 async function fetchBanners(gameKey, force = false) {
     const cache = loadBannerCache();
     const entry = cache[gameKey];
@@ -385,13 +399,25 @@ async function fetchBanners(gameKey, force = false) {
         const res = await fetch(BANNER_ENDPOINTS[gameKey]);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const raw = await res.json();
-        const updated = { banners: normalizeBanners(gameKey, raw), fetchedAt: Date.now(), error: null };
+        const updated = { banners: normalizeBanners(gameKey, raw), challenges: normalizeChallenges(raw), fetchedAt: Date.now(), error: null };
         cache[gameKey] = updated;
         saveBannerCache(cache);
         return updated;
     } catch (e) {
-        return entry || { banners: [], fetchedAt: 0, error: "load-failed" };
+        return entry || { banners: [], challenges: [], fetchedAt: 0, error: "load-failed" };
     }
+}
+
+// Looks up one challenge's live/upcoming/ended status from whatever's
+// cached - never fetches itself, so it's cheap to call from a render path.
+function getChallengeStatus(gid, apiName) {
+    const entry = loadBannerCache()[gid];
+    const c = entry && entry.challenges && entry.challenges.find(x => x.name === apiName);
+    if (!c) return null;
+    const now = Date.now();
+    if (now < c.startTime) return { state: "upcoming", text: `Starts in ${bannerCountdown(c.startTime)}` };
+    if (!c.endTime || now <= c.endTime) return { state: "live", text: c.endTime ? `Ends in ${bannerCountdown(c.endTime)}` : "Live now" };
+    return { state: "ended", text: "Recently ended" };
 }
 
 function bannerCountdown(endTime) {
@@ -474,6 +500,46 @@ const GI_COMMISSIONS_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : 
 const GI_RESIN_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Resin");
 const GI_ABYSS_IDX = GI.abyss.findIndex(t => (typeof t === "string" ? t : t.label) === "Spiral Abyss");
 const GI_THEATER_IDX = GI.abyss.findIndex(t => (typeof t === "string" ? t : t.label) === "Imaginarium Theater");
+
+// The live calendar API calls Spiral Abyss "Abyssal Moon Spire" internally;
+// Imaginarium Theater's name matches ours already.
+const GI_ABYSS_API_NAMES = {
+    "Spiral Abyss": "Abyssal Moon Spire",
+    "Imaginarium Theater": "Imaginarium Theater",
+};
+
+window.setActiveAbyssIdx = (idx) => {
+    state.activeAbyssIdx = idx;
+    window.save();
+    buildDashboard();
+};
+
+// Spiral Abyss and Imaginarium Theater are both optional (hidden by
+// default) and, per the live calendar data, don't necessarily alternate
+// exclusively - either or both can be live at once. Rather than stack
+// both as a flat list, this shows a small tab switcher (only when both are
+// enabled) plus a real live/upcoming status line for whichever is selected.
+function renderAbyssColumn(g) {
+    const visibleIdxs = g.abyss.map((_, i) => i).filter(i => !state.hidden.includes(`${g.id}-a-${i}`));
+    if (visibleIdxs.length === 0) return "";
+
+    if (state.activeAbyssIdx == null || !visibleIdxs.includes(state.activeAbyssIdx)) {
+        state.activeAbyssIdx = visibleIdxs[0];
+    }
+    const idx = state.activeAbyssIdx;
+
+    const tabsHtml = visibleIdxs.length > 1
+        ? `<div class="abyss-tabs">` + visibleIdxs.map(i => `
+            <button type="button" class="abyss-tab ${idx === i ? "active" : ""}" onclick="setActiveAbyssIdx(${i})">${g.abyss[i].label}</button>
+        `).join("") + `</div>`
+        : "";
+
+    const apiName = GI_ABYSS_API_NAMES[g.abyss[idx].label];
+    const status = apiName ? getChallengeStatus(g.id, apiName) : null;
+    const statusHtml = status ? `<div class="abyss-status abyss-status-${status.state}">${status.text}</div>` : "";
+
+    return tabsHtml + statusHtml + drawItem(g.id, "a", idx, g.abyss[idx]);
+}
 
 // ZZZ's standalone "Login" task and the "Login" entry inside Errands' sub-
 // list refer to the same real-life action, so their checkboxes are kept
@@ -773,7 +839,7 @@ function buildDashboard() {
                     <div class="task-column ${activeType === "d" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
                     <div class="task-column ${activeType === "w" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
                     ${!state.hideMonthly ? `<div class="task-column ${activeType === "m" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
-                    ${g.abyss && state.abyssEnabled ? `<div class="task-column ${activeType === "a" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Abyss</div>${g.abyss.map((t, i) => drawItem(g.id, "a", i, t)).join("")}</div>` : ""}
+                    ${g.abyss && state.abyssEnabled ? `<div class="task-column ${activeType === "a" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Abyss</div>${renderAbyssColumn(g)}</div>` : ""}
                 </div>
                 ${g.id === "gi" ? renderWeeklyStreak() : ""}
             </div>`;
@@ -1121,6 +1187,12 @@ runWeeklyStreakCycleCheck();
 
 buildDashboard();
 if (state.appTab === "banners") renderBannersView();
+// Prime GI's live calendar data (banners + challenge dates) in the
+// background, so the Abyss tab's status line is accurate as soon as it's
+// looked at instead of waiting on a fetch mid-render.
+fetchBanners("gi").then(() => {
+    if (state.activeGame === "gi") buildDashboard();
+});
 setInterval(updateLiveText, 1000);
 startSyncLoop();
 }

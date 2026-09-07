@@ -597,6 +597,50 @@ body {
     background: var(--game-accent);
 }
 
+/* --- Abyss tab switcher (Spiral Abyss / Imaginarium Theater) --- */
+.abyss-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.abyss-tab {
+    flex: 1;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+    font-weight: 700;
+    transition: all 0.2s ease;
+}
+
+.abyss-tab.active {
+    background: var(--game-accent);
+    border-color: var(--game-accent);
+    color: #000;
+}
+
+.abyss-status {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.72rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.abyss-status-live {
+    color: var(--game-accent);
+}
+
+.abyss-status-upcoming {
+    color: #fbbf24;
+}
+
+.abyss-status-ended {
+    color: var(--text-tertiary);
+}
+
 /* --- Weekly Streak Widget (Genshin) --- */
 .gw-widget {
     padding: 16px 22px 20px;
