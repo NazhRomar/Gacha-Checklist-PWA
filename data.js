@@ -13,8 +13,9 @@ export const games = [
             { label: "Blessing of the Welkin Moon", optional: true }
         ],
         weekly: [
-            "Trounce Domain", "Cook", "Forge", "Furnishings", "Realm Depot", "Traveling Salesman",
+            "Trounce Domain", "Cook", "Forge",
             { label: "Special Recruitment Project", optional: true },
+            "Furnishings", "Realm Depot", "Traveling Salesman",
         ],
         monthly: ["Stardust Exchange"],
         // Spiral Abyss and Imaginarium Theater alternate month to month (only
@@ -63,7 +64,10 @@ export const games = [
             {
                 label: "Errands",
                 min: 4,
-                sub: ["Coffee", "Divination/Scratch Card", "Video Store", "Suibian Temple", "Agent Invite"],
+                // "Login" here is the same task as the standalone Login item
+                // above, not a separate errand - script.js keeps the two
+                // checkboxes mirrored so checking either one checks both.
+                sub: ["Login", "Coffee", "Divination/Scratch Card", "Video Store", "Suibian Temple", "Agent Invite"],
             },
         ],
         weekly: ["Ridu Weekly", "Notorious Hunt", "Hollow Zero"],

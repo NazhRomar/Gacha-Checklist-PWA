@@ -101,6 +101,7 @@ const DEFAULT_STATE = {
     lastM: 0,
     lastAbyss: 0,
     lastTheater: 0,
+    abyssEnabled: true,
     gwEnabled: true,
     gwDays: [null, null, null, null, null, null, null],
     gwPoints: 0,
@@ -303,6 +304,18 @@ const GI_RESIN_IDX = GI.daily.findIndex(t => (typeof t === "string" ? t : t.labe
 const GI_ABYSS_IDX = GI.abyss.findIndex(t => (typeof t === "string" ? t : t.label) === "Spiral Abyss");
 const GI_THEATER_IDX = GI.abyss.findIndex(t => (typeof t === "string" ? t : t.label) === "Imaginarium Theater");
 
+// ZZZ's standalone "Login" task and the "Login" entry inside Errands' sub-
+// list refer to the same real-life action, so their checkboxes are kept
+// mirrored in toggleTask() below rather than tracked as two separate tasks.
+const ZZZ = games.find(g => g.id === "zzz");
+const ZZZ_LOGIN_IDX = ZZZ.daily.findIndex(t => (typeof t === "string" ? t : t.label) === "Login");
+const ZZZ_LOGIN_ID = `zzz-d-${ZZZ_LOGIN_IDX}`;
+const ZZZ_ERRANDS_IDX = ZZZ.daily.findIndex(t => typeof t === "object" && t.label === "Errands");
+const ZZZ_ERRANDS_ID = `zzz-d-${ZZZ_ERRANDS_IDX}`;
+const ZZZ_ERRANDS_TASK = ZZZ.daily[ZZZ_ERRANDS_IDX];
+const ZZZ_ERRANDS_LOGIN_SUB_IDX = ZZZ_ERRANDS_TASK.sub.findIndex(s => s === "Login");
+const ZZZ_ERRANDS_LOGIN_ID = `${ZZZ_ERRANDS_ID}-s-${ZZZ_ERRANDS_LOGIN_SUB_IDX}`;
+
 const mondayIndex = (date) => (date.getDay() + 6) % 7;
 const emptyWeek = () => [null, null, null, null, null, null, null];
 
@@ -401,7 +414,7 @@ function applyGlobalVisibility() {
 
 function taskCounts(g) {
     let done = 0, total = 0;
-    const lists = [["d", g.daily], ["w", g.weekly], ...(state.hideMonthly ? [] : [["m", g.monthly]]), ...(g.abyss ? [["a", g.abyss]] : [])];
+    const lists = [["d", g.daily], ["w", g.weekly], ...(state.hideMonthly ? [] : [["m", g.monthly]]), ...(g.abyss && state.abyssEnabled ? [["a", g.abyss]] : [])];
     lists.forEach(([type, list]) => {
         list.forEach((t, i) => {
             const id = `${g.id}-${type}-${i}`;
@@ -553,7 +566,7 @@ function buildDashboard() {
             // fall back to Daily if the globally-shared activeType doesn't
             // apply to whichever game is rendering (e.g. it was left on
             // "Abyss" and the user switched to a game without that tab).
-            const types = ["d", "w", ...(state.hideMonthly ? [] : ["m"]), ...(g.abyss ? ["a"] : [])];
+            const types = ["d", "w", ...(state.hideMonthly ? [] : ["m"]), ...(g.abyss && state.abyssEnabled ? ["a"] : [])];
             const activeType = types.includes(state.activeType) ? state.activeType : "d";
             return `
             <div id="section-${g.id}" class="game-section ${g.style} ${!state.hidden.includes(g.id) ? "visible" : ""} ${isCollapsed ? "collapsed" : ""} ${isMobileActive ? "mobile-active" : ""}">
@@ -572,7 +585,7 @@ function buildDashboard() {
                     <div class="task-column ${activeType === "d" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Daily</div>${g.daily.map((t, i) => drawItem(g.id, "d", i, t)).join("")}</div>
                     <div class="task-column ${activeType === "w" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Weekly</div>${g.weekly.map((t, i) => drawItem(g.id, "w", i, t)).join("")}</div>
                     ${!state.hideMonthly ? `<div class="task-column ${activeType === "m" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Monthly</div>${g.monthly.map((t, i) => drawItem(g.id, "m", i, t)).join("")}</div>` : ""}
-                    ${g.abyss ? `<div class="task-column ${activeType === "a" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Abyss</div>${g.abyss.map((t, i) => drawItem(g.id, "a", i, t)).join("")}</div>` : ""}
+                    ${g.abyss && state.abyssEnabled ? `<div class="task-column ${activeType === "a" ? "type-active" : ""}"><div class="column-title"><span class="column-dot"></span>Abyss</div>${g.abyss.map((t, i) => drawItem(g.id, "a", i, t)).join("")}</div>` : ""}
                 </div>
                 ${g.id === "gi" ? renderWeeklyStreak() : ""}
             </div>`;
@@ -646,6 +659,18 @@ window.toggleTask = (id, isP, count) => {
             const target = task.min || task.sub.length;
             state.checked[parentId] = done >= target;
         }
+    }
+
+    // Keep ZZZ's standalone Login and the Login entry inside Errands in
+    // sync, from whichever direction they were toggled.
+    if (id === ZZZ_LOGIN_ID) {
+        state.checked[ZZZ_ERRANDS_LOGIN_ID] = state.checked[id];
+        const done = ZZZ_ERRANDS_TASK.sub.filter((_, si) => state.checked[`${ZZZ_ERRANDS_ID}-s-${si}`]).length;
+        state.checked[ZZZ_ERRANDS_ID] = done >= (ZZZ_ERRANDS_TASK.min || ZZZ_ERRANDS_TASK.sub.length);
+    } else if (id === ZZZ_ERRANDS_LOGIN_ID) {
+        state.checked[ZZZ_LOGIN_ID] = state.checked[id];
+    } else if (id === ZZZ_ERRANDS_ID) {
+        state.checked[ZZZ_LOGIN_ID] = state.checked[id];
     }
 
     window.save();
@@ -768,6 +793,12 @@ function renderMenuItemsTab() {
         <span class="opt-item-override">✎</span> Set Reward Progress (${state.gwPoints}/8)
     </a></li>` : "");
 
+    html += `<hr class="dropdown-divider"><li class="dropdown-header">Abyss</li>
+    <li><a class="dropdown-item d-flex align-items-center gap-2" href="#" onclick="toggleConfig('abyss'); return false;">
+        <input type="checkbox" class="form-check-input mt-0" ${state.abyssEnabled ? "checked" : ""}>
+        <span class="opt-item-badge gi-theme">GI</span> Abyss Tab
+    </a></li>`;
+
     let optionalItemsHtml = "";
     forEachOptionalTask((g, type, i, t) => {
         const taskId = `${g.id}-${type}-${i}`;
@@ -805,6 +836,9 @@ window.toggleConfig = (type, id) => {
         state.hideFooter = !state.hideFooter;
     } else if (type === 'weeklystreak') {
         state.gwEnabled = !state.gwEnabled;
+    } else if (type === 'abyss') {
+        state.abyssEnabled = !state.abyssEnabled;
+        if (!state.abyssEnabled && state.activeType === "a") state.activeType = "d";
     } else if (type === 'game') {
         if (state.hidden.includes(id)) {
             state.hidden = state.hidden.filter(h => h !== id);
