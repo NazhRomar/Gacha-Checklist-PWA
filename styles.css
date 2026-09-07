@@ -1090,6 +1090,20 @@ body {
    timeline instead of cramming every tick and bar into one narrow
    card. The row-label column stays pinned via position: sticky while
    the rest scrolls underneath it. */
+
+/* A game with only a couple of events otherwise leaves the card tiny
+   and the rest of the tab an empty stretch of page - give it a
+   consistent presence regardless of how many rows it's showing. */
+#calendar-view .banner-game-card {
+    min-height: 75vh;
+    display: flex;
+    flex-direction: column;
+}
+
+#calendar-view .banner-card-body {
+    flex: 1 1 auto;
+}
+
 .calendar-scroll {
     overflow-x: auto;
 }
