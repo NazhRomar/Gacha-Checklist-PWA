@@ -317,10 +317,18 @@ const BANNER_TARGETS = [
 ];
 const BANNER_CACHE_KEY = "gacha_banners_cache";
 const BANNER_CACHE_MAX_AGE = 15 * 60 * 1000;
+// Bump this whenever normalizeBanners()/normalizeChallenges() change shape
+// (e.g. the HSR type_name->mode-name mapping). Otherwise a device with
+// data already cached under the old shape keeps showing it for up to 15
+// more minutes after a code update goes live, since the cache is still
+// "fresh" from the code's perspective - a version mismatch here forces an
+// immediate re-fetch instead of waiting on that window to expire.
+const BANNER_CACHE_VERSION = 2;
 
 function loadBannerCache() {
     try {
-        return JSON.parse(localStorage.getItem(BANNER_CACHE_KEY)) || {};
+        const cache = JSON.parse(localStorage.getItem(BANNER_CACHE_KEY)) || {};
+        return cache.__v === BANNER_CACHE_VERSION ? cache : {};
     } catch (e) {
         return {};
     }
@@ -328,6 +336,7 @@ function loadBannerCache() {
 
 function saveBannerCache(cache) {
     try {
+        cache.__v = BANNER_CACHE_VERSION;
         localStorage.setItem(BANNER_CACHE_KEY, JSON.stringify(cache));
     } catch (e) {
         // Ignore - worst case the next load just re-fetches.
