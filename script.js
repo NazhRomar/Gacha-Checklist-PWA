@@ -561,17 +561,16 @@ async function renderBannersView() {
     }
 }
 
-// The calendar window always spans whole months, so the ruler's month
-// labels land on clean boundaries instead of starting mid-month.
+// Bounded by the earliest event start (or today, if that's earlier) and
+// the latest event end - padding out to whole months left a wide stretch
+// of empty chart before the first event actually begins.
 function computeCalendarWindow(events) {
     const now = Date.now();
     const rawStart = Math.min(now, ...events.map(e => e.startTime));
     const rawEnd = Math.max(now, ...events.map(e => e.endTime));
     const start = new Date(rawStart);
-    start.setDate(1);
     start.setHours(0, 0, 0, 0);
     const end = new Date(rawEnd);
-    end.setMonth(end.getMonth() + 1, 0);
     end.setHours(23, 59, 59, 999);
     return { start: start.getTime(), end: end.getTime() };
 }
@@ -701,7 +700,7 @@ const CALENDAR_LABEL_WIDTH_PX = 170;
 // Fixed px-per-day (instead of stretching the timeline to fit the card)
 // so a long event list gets a wider, scrollable chart rather than
 // cramming every tick and bar into one narrow card's width.
-const CALENDAR_PX_PER_DAY = 24;
+const CALENDAR_PX_PER_DAY = 20;
 
 function renderCalendarCard(target, result) {
     let body;
