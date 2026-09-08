@@ -574,7 +574,7 @@ function calendarEventStatus(e) {
 function renderEventCard(e) {
     const status = calendarEventStatus(e);
     const image = e.imageUrl
-        ? `<div class="event-card-image"><img src="${e.imageUrl}" alt="${e.name}" loading="lazy"></div>`
+        ? `<div class="event-card-image" style="background-image: url('${e.imageUrl}')"></div>`
         : "";
 
     return `
