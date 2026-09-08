@@ -1109,173 +1109,93 @@ body {
     font-size: 0.85rem;
 }
 
-/* --- Calendar tab: month ruler + per-event timeline rows ---
-   The chart is rendered at a fixed px-per-day width (see
-   CALENDAR_PX_PER_DAY in script.js) rather than stretched to fit the
-   card, so long event lists get a wider, horizontally-scrollable
-   timeline instead of cramming every tick and bar into one narrow
-   card. The row-label column stays pinned via position: sticky while
-   the rest scrolls underneath it. */
+/* --- Calendar tab: one card per event, image + status pill + dates --- */
 
 /* A game with only a couple of events otherwise leaves the card tiny
    and the rest of the tab an empty stretch of page - give it a
-   consistent presence regardless of how many rows it's showing. */
+   consistent presence regardless of how many events it's showing. */
 #calendar-view .banner-game-card {
     min-height: 75vh;
-    display: flex;
-    flex-direction: column;
 }
 
-#calendar-view .banner-card-body {
-    flex: 1 1 auto;
-    display: flex;
-    flex-direction: column;
+.event-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
 }
 
-/* Stretched to fill the card's min-height rather than hugging the
-   chart's own content height, so the scrollbar sits at the bottom of
-   the container instead of right under the last row. */
-.calendar-scroll {
-    flex: 1 1 auto;
-    overflow-x: auto;
-}
-
-.calendar-chart {
-    position: relative;
-}
-
-.calendar-lines {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 170px;
-    right: 0;
-    pointer-events: none;
-}
-
-.calendar-line {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    width: 0;
-    border-left: 1.5px dashed rgba(255, 255, 255, 0.25);
-}
-
-.calendar-line-today {
-    border-left: 2px dashed rgba(255, 255, 255, 0.7);
-}
-
-.calendar-ruler {
-    display: flex;
-}
-
-.calendar-ruler-spacer {
-    flex: 0 0 170px;
-}
-
-.calendar-ruler-track {
-    position: relative;
-    flex: 1 1 auto;
-    height: 40px;
-    margin-bottom: 26px;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.calendar-month-wrap {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    border-left: 1px solid var(--border-color);
-}
-
-.calendar-month {
-    position: sticky;
-    left: 170px;
-    width: max-content;
-    padding-left: 6px;
-    font-size: 0.68rem;
-    font-weight: 800;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    color: var(--game-accent);
-    white-space: nowrap;
-}
-
-.calendar-tick-mark {
-    position: absolute;
-    bottom: 0;
-    width: 1px;
-    height: 7px;
-    background: var(--border-color-strong);
-}
-
-.calendar-tick-num {
-    position: absolute;
-    bottom: 11px;
-    left: 0;
-    transform: translateX(-50%);
-    font-family: "JetBrains Mono", monospace;
-    font-size: 0.6rem;
-    color: var(--text-tertiary);
-}
-
-.calendar-rows {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.calendar-row {
-    display: flex;
-    align-items: center;
-}
-
-.calendar-row-label {
-    position: sticky;
-    left: 0;
-    flex: 0 0 170px;
-    padding-right: 10px;
-    z-index: 2;
-    font-size: 0.76rem;
-    font-weight: 600;
-    color: #efefef;
-    white-space: nowrap;
-}
-
-.calendar-row-track {
-    position: relative;
-    flex: 1 1 auto;
-    height: 48px;
+.event-card {
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-color);
     overflow: hidden;
 }
 
-.calendar-bar {
-    position: absolute;
-    bottom: 0;
-    height: 18px;
-    border-radius: 999px;
+.event-card-image {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    background: rgba(255, 255, 255, 0.04);
 }
 
-.calendar-ends-in {
-    position: absolute;
-    top: 50%;
-    right: 8px;
-    transform: translateY(-50%);
-    font-family: "JetBrains Mono", monospace;
-    font-size: 0.6rem;
+.event-card-image img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.event-card-body {
+    padding: 14px 16px;
+}
+
+.event-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.event-card-name {
+    margin: 0;
+    font-size: 0.88rem;
     font-weight: 700;
-    color: #08090a;
+    line-height: 1.3;
+    color: #efefef;
+}
+
+.event-card-pill {
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.62rem;
+    font-weight: 700;
     white-space: nowrap;
 }
 
-.calendar-bar-live {
-    background: var(--game-accent);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--game-accent) 60%, transparent);
+.event-card-pill-live {
+    background: color-mix(in srgb, var(--game-accent) 25%, transparent);
+    color: var(--game-accent);
 }
 
-.calendar-bar-upcoming {
-    background: #facc15;
-    opacity: 0.75;
+.event-card-pill-upcoming {
+    background: rgba(250, 204, 21, 0.18);
+    color: #facc15;
+}
+
+.event-card-pill-ended {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-tertiary);
+}
+
+/* Deliberately high-contrast (not the usual dim secondary/tertiary
+   text) - the exact start/end dates shouldn't require squinting. */
+.event-card-dates {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #efefef;
 }
 
 /* --- Footer --- */
@@ -1444,10 +1364,6 @@ footer {
 
     .settings-status {
         grid-template-columns: 1fr;
-    }
-
-    .calendar-row-label {
-        font-size: 0.7rem;
     }
 
     .quick-pill-icon {
