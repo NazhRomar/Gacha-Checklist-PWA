@@ -323,7 +323,7 @@ const BANNER_CACHE_MAX_AGE = 15 * 60 * 1000;
 // more minutes after a code update goes live, since the cache is still
 // "fresh" from the code's perspective - a version mismatch here forces an
 // immediate re-fetch instead of waiting on that window to expire.
-const BANNER_CACHE_VERSION = 4;
+const BANNER_CACHE_VERSION = 5;
 
 function loadBannerCache() {
     try {
@@ -390,10 +390,10 @@ function normalizeBanners(gameKey, raw) {
 }
 
 // The same calendar response also lists ordinary limited-time events (side
-// activities, login bonuses, etc.) with real start/end times - shown as a
-// mini Gantt-style timeline at the bottom of the Banners card. A couple of
-// entries come back with start_time/end_time both 0 (looks like a data
-// glitch on the API's end, not a real perpetual event) - dropped here.
+// activities, login bonuses, etc.) with real start/end times - shown as
+// cards in the Calendar tab. A couple of entries come back with
+// start_time/end_time both 0 (looks like a data glitch on the API's end,
+// not a real perpetual event) - dropped here.
 function normalizeEvents(raw) {
     return (raw.events || [])
         .filter(e => e.end_time > 0)
@@ -402,6 +402,10 @@ function normalizeEvents(raw) {
             startTime: e.start_time * 1000,
             endTime: e.end_time * 1000,
             imageUrl: e.image_url || "",
+            specialReward: e.special_reward
+                ? { name: e.special_reward.name, icon: e.special_reward.icon, amount: e.special_reward.amount }
+                : null,
+            rewards: (e.rewards || []).map(r => ({ name: r.name, icon: r.icon, amount: r.amount })),
         }));
 }
 
@@ -571,6 +575,27 @@ function calendarEventStatus(e) {
     return { state: "ended", text: "Ended" };
 }
 
+// Capped so a long filler-reward list (Mora, EXP books, enhancement ore...)
+// doesn't overrun the card - the special reward (usually Primogems) always
+// leads since it's the one worth actually noticing.
+const CALENDAR_REWARD_CAP = 5;
+
+function renderRewardChips(e) {
+    const items = [...(e.specialReward ? [e.specialReward] : []), ...(e.rewards || [])];
+    if (items.length === 0) return "";
+
+    const shown = items.slice(0, CALENDAR_REWARD_CAP);
+    const overflow = items.length - shown.length;
+    const chips = shown.map(r => `
+        <span class="event-reward-chip" title="${r.name}${r.amount ? ` x${r.amount}` : ""}">
+            <img src="${r.icon}" alt="${r.name}" loading="lazy">
+            ${r.amount ? `<span class="event-reward-amount">${r.amount}</span>` : ""}
+        </span>`).join("");
+    const more = overflow > 0 ? `<span class="event-reward-chip event-reward-more">+${overflow}</span>` : "";
+
+    return `<div class="event-reward-row">${chips}${more}</div>`;
+}
+
 function renderEventCard(e) {
     const status = calendarEventStatus(e);
     const image = e.imageUrl
@@ -586,6 +611,7 @@ function renderEventCard(e) {
                 <span class="event-card-pill event-card-pill-${status.state}">${status.text}</span>
             </div>
             <div class="event-card-dates">${calendarDate(e.startTime)} &ndash; ${calendarDate(e.endTime)}</div>
+            ${renderRewardChips(e)}
         </div>
     </div>`;
 }
