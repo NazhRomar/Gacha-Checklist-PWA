@@ -1124,9 +1124,14 @@ body {
     gap: 16px;
 }
 
+/* Fixed height, with the body laid out as two pinned blocks (top:
+   title+pill, bottom: dates+rewards) rather than stacked content of
+   whatever height it happens to need - so every card in the grid is
+   the same size and lines up regardless of how long a name is or how
+   many rewards an event has. */
 .event-card {
     position: relative;
-    min-height: 96px;
+    height: 128px;
     border-radius: var(--radius-md);
     background: rgba(255, 255, 255, 0.02);
     border: 1px solid var(--border-color);
@@ -1143,6 +1148,7 @@ body {
     width: 55%;
     background-size: cover;
     background-position: center;
+    filter: blur(1.5px) brightness(0.8);
     -webkit-mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.9) 30%, transparent 90%);
     mask-image: linear-gradient(to right, rgba(0, 0, 0, 0.9) 30%, transparent 90%);
 }
@@ -1150,6 +1156,10 @@ body {
 .event-card-body {
     position: relative;
     z-index: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
     padding: 14px 16px;
 }
 
@@ -1158,7 +1168,6 @@ body {
     align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
-    margin-bottom: 8px;
 }
 
 .event-card-name {
@@ -1167,6 +1176,10 @@ body {
     font-weight: 700;
     line-height: 1.3;
     color: #efefef;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .event-card-pill {
@@ -1197,16 +1210,22 @@ body {
 /* Deliberately high-contrast (not the usual dim secondary/tertiary
    text) - the exact start/end dates shouldn't require squinting. */
 .event-card-dates {
+    margin-top: 4px;
     font-family: "JetBrains Mono", monospace;
     font-size: 0.78rem;
     font-weight: 700;
     color: #efefef;
 }
 
+/* Reserves exactly one row of chips (28px) regardless of how many
+   rewards actually fit that - events with none at all still leave the
+   same blank space rather than shrinking the card. */
 .event-reward-row {
     display: flex;
     gap: 6px;
+    height: 28px;
     margin-top: 10px;
+    overflow: hidden;
 }
 
 .event-reward-chip {

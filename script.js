@@ -575,15 +575,17 @@ function calendarEventStatus(e) {
     return { state: "ended", text: "Ended" };
 }
 
-// Capped so a long filler-reward list (Mora, EXP books, enhancement ore...)
-// doesn't overrun the card - the special reward (usually Primogems) always
-// leads since it's the one worth actually noticing.
+// Capped to roughly what fits in the single row the card reserves for
+// them (see .event-reward-row) - the special reward (usually Primogems)
+// always leads since it's the one worth actually noticing.
 const CALENDAR_REWARD_CAP = 5;
 
+// Always renders the row, even with zero rewards (ZZZ's events carry no
+// reward data at all) - the card reserves this space regardless, so an
+// empty row here just means that space stays blank instead of the card
+// itself changing shape.
 function renderRewardChips(e) {
     const items = [...(e.specialReward ? [e.specialReward] : []), ...(e.rewards || [])];
-    if (items.length === 0) return "";
-
     const shown = items.slice(0, CALENDAR_REWARD_CAP);
     const overflow = items.length - shown.length;
     const chips = shown.map(r => `
@@ -606,11 +608,13 @@ function renderEventCard(e) {
     <div class="event-card">
         ${image}
         <div class="event-card-body">
-            <div class="event-card-top">
-                <h3 class="event-card-name">${e.name}</h3>
-                <span class="event-card-pill event-card-pill-${status.state}">${status.text}</span>
+            <div class="event-card-top-group">
+                <div class="event-card-top">
+                    <h3 class="event-card-name">${e.name}</h3>
+                    <span class="event-card-pill event-card-pill-${status.state}">${status.text}</span>
+                </div>
+                <div class="event-card-dates">${calendarDate(e.startTime)} &ndash; ${calendarDate(e.endTime)}</div>
             </div>
-            <div class="event-card-dates">${calendarDate(e.startTime)} &ndash; ${calendarDate(e.endTime)}</div>
             ${renderRewardChips(e)}
         </div>
     </div>`;
