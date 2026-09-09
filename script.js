@@ -323,7 +323,7 @@ const BANNER_CACHE_MAX_AGE = 15 * 60 * 1000;
 // more minutes after a code update goes live, since the cache is still
 // "fresh" from the code's perspective - a version mismatch here forces an
 // immediate re-fetch instead of waiting on that window to expire.
-const BANNER_CACHE_VERSION = 5;
+const BANNER_CACHE_VERSION = 6;
 
 function loadBannerCache() {
     try {
@@ -345,24 +345,30 @@ function saveBannerCache(cache) {
 
 // Each game's API shapes banners differently (field names, rarity as a
 // number vs a letter grade, no `name` at all for HSR) - this normalizes all
-// three into the same {label, items, endTime} shape the renderer expects,
-// filtered down to only banners that are actually live right now.
+// three into the same {label, items, startTime, endTime, state} shape the
+// renderer expects. Keeps both the currently-live banners and whatever
+// phase comes next (HSR/ZZZ's API includes the next phase's real
+// start/end ahead of time; GI's only posts one phase at a time), dropping
+// only ones that have already fully ended.
 function normalizeBanners(gameKey, raw) {
     const now = Date.now();
-    const live = (raw.banners || [])
+    const all = (raw.banners || [])
         .map(b => ({ ...b, start_time: b.start_time * 1000, end_time: b.end_time * 1000 }))
-        .filter(b => b.start_time <= now && now <= b.end_time);
+        .filter(b => now <= b.end_time);
+    const state = (b) => b.start_time <= now ? "live" : "upcoming";
 
     if (gameKey === "gi") {
-        return live.map(b => ({
+        return all.map(b => ({
             label: b.name,
             items: [...b.characters, ...b.weapons].map(x => ({ name: x.name, icon: x.icon, top: x.rarity === 5 })),
+            startTime: b.start_time,
             endTime: b.end_time,
+            state: state(b),
         }));
     }
     if (gameKey === "hsr") {
         const seen = { character: 0, weapon: 0 };
-        return live.map(b => {
+        return all.map(b => {
             const isChar = b.characters.length > 0;
             const kind = isChar ? "character" : "weapon";
             seen[kind]++;
@@ -370,13 +376,15 @@ function normalizeBanners(gameKey, raw) {
             return {
                 label: seen[kind] > 1 ? `${base} ${seen[kind]}` : base,
                 items: [...b.characters, ...(b.light_cones || [])].map(x => ({ name: x.name, icon: x.icon, top: x.rarity === 5 })),
+                startTime: b.start_time,
                 endTime: b.end_time,
+                state: state(b),
             };
         });
     }
     // zzz
     const zzzSeen = {};
-    return live.map(b => {
+    return all.map(b => {
         const isChar = b.banner_type.includes("CHARACTER");
         const isRerun = b.banner_type.includes("RETURN");
         const base = (isChar ? "Exclusive Channel" : "W-Engine Channel") + (isRerun ? " (Rerun)" : "");
@@ -384,7 +392,9 @@ function normalizeBanners(gameKey, raw) {
         return {
             label: zzzSeen[base] > 1 ? `${base} ${zzzSeen[base]}` : base,
             items: [...(b.agents || []), ...(b.w_engines || [])].map(x => ({ name: x.name, icon: x.icon, top: x.rarity === "S" })),
+            startTime: b.start_time,
             endTime: b.end_time,
+            state: state(b),
         };
     });
 }
@@ -511,27 +521,44 @@ function bannerCountdown(endTime) {
     return days > 0 ? `${days}d ${hours}h` : `${hours}h`;
 }
 
+function renderBannerBlock(b) {
+    const isUpcoming = b.state === "upcoming";
+    const countdown = isUpcoming ? `Starts in ${bannerCountdown(b.startTime)}` : `Ends in ${bannerCountdown(b.endTime)}`;
+
+    return `
+    <div class="banner-block ${isUpcoming ? "banner-block-upcoming" : ""}">
+        <div class="banner-block-header">
+            <span class="banner-block-label">${b.label}</span>
+            <span class="banner-block-countdown">${countdown}</span>
+        </div>
+        <div class="banner-chars">
+            ${b.items.map(it => `
+                <div class="banner-char ${it.top ? "banner-char-top" : ""}">
+                    <span class="banner-char-icon"><img src="${it.icon}" alt="${it.name}" loading="lazy"></span>
+                    <span class="banner-char-name">${it.name}</span>
+                </div>`).join("")}
+        </div>
+    </div>`;
+}
+
 function renderBannerCard(target, result) {
-    const body = result.error
-        ? `<div class="banner-empty">Couldn&rsquo;t load banners &mdash; try again later.</div>`
-        : result.loading
-        ? `<div class="banner-empty">Loading&hellip;</div>`
-        : result.banners.length === 0
-        ? `<div class="banner-empty">No active banners right now.</div>`
-        : `<div class="banner-blocks">` + result.banners.map(b => `
-            <div class="banner-block">
-                <div class="banner-block-header">
-                    <span class="banner-block-label">${b.label}</span>
-                    <span class="banner-block-countdown">Ends in ${bannerCountdown(b.endTime)}</span>
-                </div>
-                <div class="banner-chars">
-                    ${b.items.map(it => `
-                        <div class="banner-char ${it.top ? "banner-char-top" : ""}">
-                            <span class="banner-char-icon"><img src="${it.icon}" alt="${it.name}" loading="lazy"></span>
-                            <span class="banner-char-name">${it.name}</span>
-                        </div>`).join("")}
-                </div>
-            </div>`).join("") + `</div>`;
+    let body;
+    if (result.error) {
+        body = `<div class="banner-empty">Couldn&rsquo;t load banners &mdash; try again later.</div>`;
+    } else if (result.loading) {
+        body = `<div class="banner-empty">Loading&hellip;</div>`;
+    } else {
+        const live = result.banners.filter(b => b.state !== "upcoming");
+        const upcoming = result.banners.filter(b => b.state === "upcoming");
+        body = live.length > 0
+            ? `<div class="banner-blocks">${live.map(renderBannerBlock).join("")}</div>`
+            : `<div class="banner-empty">No active banners right now.</div>`;
+        if (upcoming.length > 0) {
+            body += `
+            <div class="banner-section-label">Upcoming</div>
+            <div class="banner-blocks">${upcoming.map(renderBannerBlock).join("")}</div>`;
+        }
+    }
 
     return `
     <div class="banner-game-card ${target.style}">

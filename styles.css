@@ -1056,6 +1056,26 @@ body {
     white-space: nowrap;
 }
 
+/* Not live yet - dimmed slightly and the countdown reads "Starts in"
+   in amber rather than the usual muted "Ends in" text, so it reads as
+   a preview rather than something you can act on right now. */
+.banner-block-upcoming {
+    opacity: 0.8;
+}
+
+.banner-block-upcoming .banner-block-countdown {
+    color: #facc15;
+}
+
+.banner-section-label {
+    margin: 20px 0 12px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
 .banner-chars {
     display: flex;
     flex-wrap: wrap;
