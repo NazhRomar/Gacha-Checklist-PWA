@@ -5,3 +5,10 @@ compatibility_date = "2024-11-01"
 kv_namespaces = [
     { binding = "SYNC_KV", id = "454aa1d8d4e44daea809c52a7197ca6e" }
 ]
+
+# Checks for due push notifications every 5 minutes - plenty of precision
+# for a reminder, trivial invocation count either way.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Also requires a VAPID_PRIVATE_KEY secret (not stored here - see README.md).

@@ -287,6 +287,25 @@ body {
     flex-shrink: 0;
 }
 
+.settings-row-remove {
+    color: var(--text-tertiary);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    padding: 2px 6px;
+}
+
+.settings-row-remove:hover {
+    color: #f87171;
+}
+
+.settings-note {
+    padding: 8px 4px 4px;
+    font-size: 0.82rem;
+    color: var(--text-tertiary);
+}
+
 .settings-toggle {
     position: relative;
     width: 42px;

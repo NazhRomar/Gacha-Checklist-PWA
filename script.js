@@ -296,6 +296,205 @@ function startSyncLoop() {
     setInterval(renderSyncStatus, 5000);
 }
 
+// --- Push notifications (optional, via the same Cloudflare Worker as Sync) ---
+// A push subscription is per-browser and non-transferable, unlike Sync's
+// PIN (which is deliberately shared across a user's devices) - so this
+// gets its own random device id instead of reusing the PIN, and works
+// whether or not Sync itself is turned on. It does still reuse Sync's
+// `workerUrl` (same Worker, different route), prompting for one the first
+// time if Sync was never set up.
+const PUSH_CFG_KEY = "gacha_push_cfg";
+// Public VAPID key - safe to ship client-side (see sync-worker/README.md
+// for how this pairs with the Worker's private half).
+const VAPID_PUBLIC_KEY = "BFVO-gPPY_TAjY7CBfd_-ILyaSM2XkJswdn60yIGkjRO2FcvMvC_wW9CGoBoBwpccHZXbf1ixq9_Tx-pkfcjuuU";
+
+function loadPushCfg() {
+    try {
+        return JSON.parse(localStorage.getItem(PUSH_CFG_KEY)) || {};
+    } catch (e) {
+        return {};
+    }
+}
+
+function savePushCfg(cfg) {
+    localStorage.setItem(PUSH_CFG_KEY, JSON.stringify(cfg));
+}
+
+function pushEndpoint(deviceId) {
+    return `${loadSyncCfg().workerUrl}/push/${encodeURIComponent(deviceId)}`;
+}
+
+function getWorkerUrl() {
+    const syncCfg = loadSyncCfg();
+    if (syncCfg.workerUrl) return syncCfg.workerUrl;
+    const url = prompt("Cloudflare Worker URL (see sync-worker/README.md to deploy one):", "");
+    if (!url) return null;
+    const trimmed = url.trim().replace(/\/+$/, "");
+    saveSyncCfg({ ...syncCfg, workerUrl: trimmed });
+    return trimmed;
+}
+
+// "17:00" -> the next absolute timestamp that time occurs at in local time
+// (today if still ahead of `now`, otherwise tomorrow) - the same trick
+// getReset() uses for daily/weekly/monthly boundaries, generalized to an
+// arbitrary time of day so the Worker never has to do timezone math itself.
+function resolveCheckpoint(hhmm, now = new Date()) {
+    const [h, m] = hhmm.split(":").map(Number);
+    const d = new Date(now);
+    d.setHours(h, m, 0, 0);
+    if (d.getTime() <= now.getTime()) d.setDate(d.getDate() + 1);
+    return d.getTime();
+}
+
+// Sums done/total across all games' *daily* tasks only (same hidden-task
+// exclusion taskCounts() uses for its per-game count) - what the
+// low-progress nudge checks against.
+function dailyProgressPct() {
+    let done = 0, total = 0;
+    games.forEach(g => {
+        g.daily.forEach((t, i) => {
+            const id = `${g.id}-d-${i}`;
+            if (state.hidden.includes(id)) return;
+            total++;
+            if (state.checked[id]) done++;
+        });
+    });
+    return total === 0 ? 100 : Math.round((done / total) * 100);
+}
+
+let pushUpdateTimer = null;
+
+async function pushSubscribeUpdate(overrides = {}) {
+    const cfg = loadPushCfg();
+    if (!cfg.deviceId || !cfg.subscribed) return;
+    const workerUrl = loadSyncCfg().workerUrl;
+    if (!workerUrl) return;
+
+    const now = new Date();
+    const body = {
+        prefs: cfg.prefs,
+        resetAt: { daily: getReset("d"), weekly: getReset("w"), monthly: getReset("m") },
+        checkpoints: (cfg.checkpoints || []).map(t => ({ time: t, at: resolveCheckpoint(t, now) })),
+        dailyProgressPct: dailyProgressPct(),
+        ...overrides,
+    };
+    try {
+        await fetch(pushEndpoint(cfg.deviceId), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+    } catch (e) {
+        // Best-effort - the next refresh (app load, or the next save()) tries again.
+    }
+}
+
+// Debounced the same way scheduleSyncPush() is - called from window.save()
+// so the Worker's copy of "how much progress today" stays fresh while the
+// app is actually open, without a request on every single checkbox click.
+function schedulePushProgressUpdate() {
+    if (!loadPushCfg().subscribed) return;
+    clearTimeout(pushUpdateTimer);
+    pushUpdateTimer = setTimeout(pushSubscribeUpdate, 2000);
+}
+
+function urlBase64ToUint8Array(base64) {
+    const bin = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+}
+
+window.enablePushNotifications = async () => {
+    if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+        alert("Push notifications aren't supported in this browser.");
+        return;
+    }
+    const workerUrl = getWorkerUrl();
+    if (!workerUrl) return;
+
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+        updateMenu();
+        return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+
+    const cfg = loadPushCfg();
+    cfg.deviceId = cfg.deviceId || crypto.randomUUID();
+    cfg.subscribed = true;
+    cfg.prefs = cfg.prefs || { daily: true, weekly: true, monthly: true, nudges: false };
+    cfg.checkpoints = cfg.checkpoints && cfg.checkpoints.length ? cfg.checkpoints : ["17:00", "20:00"];
+    savePushCfg(cfg);
+
+    await pushSubscribeUpdate({ subscription: subscription.toJSON() });
+    updateMenu();
+};
+
+window.togglePushPref = (type) => {
+    const cfg = loadPushCfg();
+    cfg.prefs[type] = !cfg.prefs[type];
+    if (type === "nudges" && cfg.prefs.nudges && (!cfg.checkpoints || cfg.checkpoints.length === 0)) {
+        cfg.checkpoints = ["17:00", "20:00"];
+    }
+    savePushCfg(cfg);
+    pushSubscribeUpdate();
+    updateMenu();
+};
+
+window.addPushCheckpoint = () => {
+    const input = prompt("Check-in time (24h, HH:MM, your local time):", "17:00");
+    if (input === null) return;
+    const trimmed = input.trim();
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed)) {
+        alert("Please enter a time as HH:MM, 24-hour (e.g. 17:00).");
+        return;
+    }
+    const cfg = loadPushCfg();
+    cfg.checkpoints = cfg.checkpoints || [];
+    if (!cfg.checkpoints.includes(trimmed)) cfg.checkpoints.push(trimmed);
+    savePushCfg(cfg);
+    pushSubscribeUpdate();
+    updateMenu();
+};
+
+window.removePushCheckpoint = (time) => {
+    const cfg = loadPushCfg();
+    cfg.checkpoints = (cfg.checkpoints || []).filter(t => t !== time);
+    savePushCfg(cfg);
+    pushSubscribeUpdate();
+    updateMenu();
+};
+
+window.disablePushNotifications = async () => {
+    const cfg = loadPushCfg();
+    try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (subscription) await subscription.unsubscribe();
+    } catch (e) {
+        // Ignore - still clear local state and tell the Worker below.
+    }
+    const workerUrl = loadSyncCfg().workerUrl;
+    if (cfg.deviceId && workerUrl) {
+        try { await fetch(pushEndpoint(cfg.deviceId), { method: "DELETE" }); } catch (e) {}
+    }
+    savePushCfg({ ...cfg, subscribed: false });
+    updateMenu();
+};
+
+// Called once per app load (getReset()/resolveCheckpoint() are always
+// forward-looking, so a value that's a few hours stale from the last
+// session is still correct until it actually fires).
+function refreshPushSchedule() {
+    if (loadPushCfg().subscribed) pushSubscribeUpdate();
+}
+
 // --- Live Banners (optional, via a public fan-maintained HoYoverse API) ---
 // This is read-only reference info, not app data - it isn't tracked in
 // `state` (no checked/hidden/reset logic applies) and isn't synced across
@@ -838,6 +1037,7 @@ window.save = (isReset = false) => {
     if (updatedEl) updatedEl.innerText = state.up || "-";
     if (resetEl) resetEl.innerText = state.rs || "-";
     scheduleSyncPush();
+    schedulePushProgressUpdate();
 };
 
 const GW_CYCLE_STATES = ["done", "missed", null];
@@ -1258,8 +1458,16 @@ function settingsActionRow(label, onclick, indent) {
     </div>`;
 }
 
+function settingsCheckpointRow(time) {
+    return `<div class="settings-row settings-row-indent">
+        <span class="settings-row-label">${time}</span>
+        <span class="settings-row-remove" onclick="removePushCheckpoint('${time}')">&times;</span>
+    </div>`;
+}
+
 function renderMenuDisplayTab() {
     const syncCfg = loadSyncCfg();
+    const pushCfg = loadPushCfg();
     let html = settingsToggleRow("Hide Monthly Column", state.hideMonthly, "toggleConfig('monthly')")
         + settingsToggleRow("Hide Reset Timers", state.hideTimers, "toggleConfig('timers')")
         + `<div class="settings-section-title">Sync</div>`;
@@ -1270,6 +1478,23 @@ function renderMenuDisplayTab() {
             + settingsActionRow("Turn Off Sync", "disableSync()");
     } else {
         html += settingsActionRow("Set Up Sync&hellip;", "setupSync()");
+    }
+
+    html += `<div class="settings-section-title">Notifications</div>`;
+    if (typeof Notification !== "undefined" && Notification.permission === "denied") {
+        html += `<div class="settings-note">Notifications are blocked for this site in your browser settings.</div>`;
+    } else if (pushCfg.subscribed) {
+        html += settingsToggleRow("Daily Reset", pushCfg.prefs?.daily, "togglePushPref('daily')")
+            + settingsToggleRow("Weekly Reset", pushCfg.prefs?.weekly, "togglePushPref('weekly')")
+            + settingsToggleRow("Monthly Reset", pushCfg.prefs?.monthly, "togglePushPref('monthly')")
+            + settingsToggleRow("Low-Progress Nudges", pushCfg.prefs?.nudges, "togglePushPref('nudges')");
+        if (pushCfg.prefs?.nudges) {
+            html += (pushCfg.checkpoints || []).map(settingsCheckpointRow).join("")
+                + settingsActionRow("Add Check-in Time&hellip;", "addPushCheckpoint()", true);
+        }
+        html += settingsActionRow("Turn Off Notifications", "disablePushNotifications()");
+    } else {
+        html += settingsActionRow("Enable Notifications", "enablePushNotifications()");
     }
     return html;
 }
@@ -1452,6 +1677,7 @@ if (state.appTab === "banners") renderBannersView();
 })();
 setInterval(updateLiveText, 1000);
 startSyncLoop();
+refreshPushSchedule();
 }
 
 initApp();

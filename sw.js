@@ -1,4 +1,4 @@
-const CACHE = "gacha-checklist-v49";
+const CACHE = "gacha-checklist-v50";
 
 const PRECACHE_URLS = [
     "./",
@@ -60,4 +60,27 @@ self.addEventListener("fetch", (event) => {
             })
             .catch(() => caches.match(event.request))
     );
+});
+
+// Reset reminders and low-progress nudges sent by sync-worker/worker.js.
+self.addEventListener("push", (event) => {
+    let data = {};
+    try {
+        data = event.data ? event.data.json() : {};
+    } catch (e) {
+        // Ignore - fall back to the generic title/body below.
+    }
+    event.waitUntil(
+        self.registration.showNotification(data.title || "Gacha Checklist", {
+            body: data.body || "",
+            icon: "./images/icon-192.png",
+            badge: "./images/icon-192-maskable.png",
+            tag: data.tag,
+        })
+    );
+});
+
+self.addEventListener("notificationclick", (event) => {
+    event.notification.close();
+    event.waitUntil(self.clients.openWindow("./"));
 });
