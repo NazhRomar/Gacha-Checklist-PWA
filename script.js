@@ -1323,7 +1323,16 @@ async function initApp() {
     // 1. Daily Reset Check
     if (state.lastD < getReset("d") - 86400000) {
     if (state.gwEnabled) {
-        const endedDayIdx = mondayIndex(new Date(getReset("d") - 86400000));
+        // The day that just ended is "yesterday" relative to the current
+        // game day - NOT getReset("d") - 1 day. getReset("d") is
+        // recomputed fresh right here, so by the time this runs (e.g.
+        // reopening the app at any normal daytime hour, well after the
+        // 4am reset already passed), it's already rolled forward to
+        // tomorrow's boundary - making that formula land on today's
+        // weekday instead of yesterday's, i.e. off by one day forward.
+        const endedDay = gameDay();
+        endedDay.setDate(endedDay.getDate() - 1);
+        const endedDayIdx = mondayIndex(endedDay);
         // Don't clobber a day already explicitly resolved (e.g. via manual edit).
         if (state.gwDays[endedDayIdx] == null) {
             const done = state.checked[`gi-d-${GI_COMMISSIONS_IDX}`] && state.checked[`gi-d-${GI_RESIN_IDX}`];
