@@ -7,10 +7,10 @@
     --text-primary: #f4f4f5;
     --text-secondary: #a1a1aa;
     --text-tertiary: #7c7c85;
-    --gi-color: #4ade80;
-    --hi3-color: #f472b6;
-    --hsr-color: #60a5fa;
-    --zzz-color: #facc15;
+    --gi-color: #ecc792;
+    --hi3-color: #ff27dc;
+    --hsr-color: #9900ff;
+    --zzz-color: #ff6d01;
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 18px;
@@ -645,6 +645,9 @@ body {
 /* --- Challenge tab live-status pills (Spiral Abyss, Imaginarium Theater,
    and whatever HSR/ZZZ's current live challenges are) --- */
 .challenge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     align-self: center;
     flex-shrink: 0;
     margin-right: 14px;
@@ -658,14 +661,21 @@ body {
     color: var(--text-secondary);
 }
 
+/* Shared by every "Starts in"/"Ends in"/etc. status pill. */
+.status-icon {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+}
+
 .challenge-pill-live {
     background: color-mix(in srgb, var(--game-accent) 20%, transparent);
     color: var(--game-accent);
 }
 
 .challenge-pill-upcoming {
-    background: rgba(250, 204, 21, 0.15);
-    color: #facc15;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
 }
 
 .challenge-pill-ended {
@@ -1069,21 +1079,24 @@ body {
 }
 
 .banner-block-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-family: "JetBrains Mono", monospace;
     font-size: 0.72rem;
-    color: var(--text-secondary);
+    color: var(--game-accent);
     white-space: nowrap;
 }
 
-/* Not live yet - dimmed slightly and the countdown reads "Starts in"
-   in amber rather than the usual muted "Ends in" text, so it reads as
-   a preview rather than something you can act on right now. */
+/* Not live yet - dimmed slightly, and its countdown stays a neutral
+   gray rather than the game's own accent color, so it reads as a
+   preview rather than something already active. */
 .banner-block-upcoming {
     opacity: 0.8;
 }
 
 .banner-block-upcoming .banner-block-countdown {
-    color: #facc15;
+    color: var(--text-secondary);
 }
 
 .banner-section-label {
@@ -1222,6 +1235,9 @@ body {
 }
 
 .event-card-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     flex-shrink: 0;
     padding: 3px 9px;
     border-radius: 999px;
@@ -1237,8 +1253,8 @@ body {
 }
 
 .event-card-pill-upcoming {
-    background: rgba(250, 204, 21, 0.18);
-    color: #facc15;
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-secondary);
 }
 
 .event-card-pill-ended {

@@ -708,9 +708,24 @@ function getChallengeStatus(gid, apiName) {
     const c = entry && entry.challenges && entry.challenges.find(x => x.name === apiName);
     if (!c) return null;
     const now = Date.now();
-    if (now < c.startTime) return { state: "upcoming", text: `Starts in ${bannerCountdown(c.startTime)}` };
-    if (!c.endTime || now <= c.endTime) return { state: "live", text: c.endTime ? `Ends in ${bannerCountdown(c.endTime)}` : "Live now" };
+    if (now < c.startTime) return { state: "upcoming", text: bannerCountdown(c.startTime) };
+    if (!c.endTime || now <= c.endTime) return { state: "live", text: c.endTime ? bannerCountdown(c.endTime) : "Live now" };
     return { state: "ended", text: "Recently ended" };
+}
+
+// Icons for the "Starts in"/"Ends in"/etc. status pills - inline SVGs
+// (stroke: currentColor, so they pick up whatever color the pill's state
+// class sets) copied from Lucide (MIT), rather than a runtime icon-font/JS
+// library, since these render into strings that get re-inserted via
+// innerHTML on every re-render - no init step to remember to re-run.
+const STATUS_ICONS = {
+    upcoming: `<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>`,
+    live: `<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
+    ended: `<svg class="status-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg>`,
+};
+
+function statusIcon(state) {
+    return STATUS_ICONS[state] || STATUS_ICONS.live;
 }
 
 function bannerCountdown(endTime) {
@@ -722,13 +737,13 @@ function bannerCountdown(endTime) {
 
 function renderBannerBlock(b) {
     const isUpcoming = b.state === "upcoming";
-    const countdown = isUpcoming ? `Starts in ${bannerCountdown(b.startTime)}` : `Ends in ${bannerCountdown(b.endTime)}`;
+    const countdown = isUpcoming ? bannerCountdown(b.startTime) : bannerCountdown(b.endTime);
 
     return `
     <div class="banner-block ${isUpcoming ? "banner-block-upcoming" : ""}">
         <div class="banner-block-header">
             <span class="banner-block-label">${b.label}</span>
-            <span class="banner-block-countdown">${countdown}</span>
+            <span class="banner-block-countdown">${statusIcon(isUpcoming ? "upcoming" : "live")}${countdown}</span>
         </div>
         <div class="banner-chars">
             ${b.items.map(it => `
@@ -796,8 +811,8 @@ const calendarDate = (ts) => new Date(ts).toLocaleDateString("en-US", { month: "
 
 function calendarEventStatus(e) {
     const now = Date.now();
-    if (now < e.startTime) return { state: "upcoming", text: `Starts in ${bannerCountdown(e.startTime)}` };
-    if (now <= e.endTime) return { state: "live", text: `Ends in ${bannerCountdown(e.endTime)}` };
+    if (now < e.startTime) return { state: "upcoming", text: bannerCountdown(e.startTime) };
+    if (now <= e.endTime) return { state: "live", text: bannerCountdown(e.endTime) };
     return { state: "ended", text: "Ended" };
 }
 
@@ -837,7 +852,7 @@ function renderEventCard(e) {
             <div class="event-card-top-group">
                 <div class="event-card-top">
                     <h3 class="event-card-name">${e.name}</h3>
-                    <span class="event-card-pill event-card-pill-${status.state}">${status.text}</span>
+                    <span class="event-card-pill event-card-pill-${status.state}">${statusIcon(status.state)}${status.text}</span>
                 </div>
                 <div class="event-card-dates">${calendarDate(e.startTime)} &ndash; ${calendarDate(e.endTime)}</div>
             </div>
@@ -929,7 +944,7 @@ function gameHasChallengeTab(g) {
 
 function challengePill(status) {
     if (!status) return "";
-    return `<span class="challenge-pill challenge-pill-${status.state}">${status.text}</span>`;
+    return `<span class="challenge-pill challenge-pill-${status.state}">${statusIcon(status.state)}${status.text}</span>`;
 }
 
 function renderChallengeRow(label, status, checkId) {
